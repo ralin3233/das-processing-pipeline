@@ -1,0 +1,34 @@
+# configs/convert_default.yaml
+
+project_name: "das_convert_default"
+
+# ── 資料來源設定 ──────────────────────────
+data:
+  input_dir: "/mnt/d/ProgramingProject/sinoTech/Academia_Sinica-MiDAS/work/data/Event_20230206102450_3600sec_M7.5/"     # MiniSEED 檔案所在資料夾
+  format: "miniseed"                  # 目前固定 miniseed，未來可加 segy 等
+  file_pattern: "*.mseed"             # glob pattern，篩選要讀哪些檔
+  channel_range: [0, 5000]            # 要讀取的 channel 範圍 [start, end]
+  sampling_rate: 100                  # Hz，如果 MiniSEED header 沒寫全可以在這裡指定
+  time_range: null                    # 可選: ["2023-02-15T05:00:00", "2023-02-15T05:30:00"]
+                                        # null 代表讀取檔案內全部時間範圍
+
+# ── 座標對齊設定 ──────────────────────────
+coordinate:
+  fiber_geometry_file: "data/raw/geometry.csv"  # 光纖幾何座標檔 (channel -> lat/lon/depth)
+  interpolation: "linear"             # 座標插值方法: linear | nearest
+  distance_unit: "m"                  # 座標檔案裡距離的單位
+  strict_shape_check: true            # true: shape 對不上直接報錯，方便你抓 bug
+                                        # 之後穩定了可以改 false 讓它自動裁切/補值
+
+# ── 輸出設定 ──────────────────────────
+output:
+  save_dir: "data/processed"
+  filename_pattern: "{project_name}_{timestamp}.h5"
+  format: "dascore_h5"                # 對應 DASDAE .h5 格式
+  overwrite: false                    # false: 檔案已存在就報錯，避免不小心覆蓋
+  compression: "gzip"                 # h5 壓縮方式，可選 null 關閉
+
+# ── 執行期設定 ──────────────────────────
+runtime:
+  log_level: "INFO"                   # DEBUG | INFO | WARNING
+  save_manifest: true                 # 是否把實際跑的 config + timestamp 存成記錄檔

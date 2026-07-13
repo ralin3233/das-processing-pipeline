@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# 資料與輸出（通常很大或屬於本機資料，不該進版控）
+data/raw/
+data/processed/
+data/interim/
+outputs/
+*.h5
+*.mseed
+
+# 環境
+.env
+
+# IDE
+.vscode/
+.idea/

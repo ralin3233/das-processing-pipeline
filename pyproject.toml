@@ -1,0 +1,13 @@
+[project]
+name = "das-pipeline"
+version = "0.1.0"
+dependencies = [
+    "typer",
+    "pydantic",
+    "dascore",
+    "obspy",
+    "pyyaml",
+]
+
+[project.scripts]
+das-pipeline = "das_pipeline.cli:app"
