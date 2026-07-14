@@ -1,6 +1,20 @@
 from das_pipeline.config import ConvertConfig
-from das_pipeline.io import miniseed_loader, patch_writer
+from das_pipeline.io import spool_loader, coord_utils, patch_writer
 
-def run_convert(config: ConvertConfig) -> str:
-    patch = miniseed_loader.load(config.data)
-    return patch_writer.save(patch, config.output, config.project_name)
+
+def run_convert(config: ConvertConfig):
+    spool = spool_loader.get_spool(config.data)
+
+    save_paths = []
+    for chunk_index, patch in spool_loader.iter_chunks(spool, config.data):
+        patch = coord_utils.align(patch, config.coordinate)
+
+        save_path = patch_writer.save(
+            patch,
+            config.output,
+            project_name=config.project_name,
+            chunk_index=chunk_index,
+        )
+        save_paths.append(save_path)
+
+    return save_paths

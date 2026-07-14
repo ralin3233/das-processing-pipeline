@@ -10,7 +10,8 @@ data:
   channel_range: [0, 5000]            # 要讀取的 channel 範圍 [start, end]
   sampling_rate: 100                  # Hz，如果 MiniSEED header 沒寫全可以在這裡指定
   time_range: null                    # 可選: ["2023-02-15T05:00:00", "2023-02-15T05:30:00"]
-                                        # null 代表讀取檔案內全部時間範圍
+  chunk_duration: "10min"               # 每段處理多長時間
+  chunk_overlap: "0s"                   # 段與段之間的緩衝（濾波邊界效應用得到）
 
 # ── 座標對齊設定 ──────────────────────────
 coordinate:
@@ -23,7 +24,7 @@ coordinate:
 # ── 輸出設定 ──────────────────────────
 output:
   save_dir: "data/processed"
-  filename_pattern: "{project_name}_{timestamp}.h5"
+  filename_pattern: "{project_name}_{timestamp}_chunk{chunk_index:04d}.h5"
   format: "dascore_h5"                # 對應 DASDAE .h5 格式
   overwrite: false                    # false: 檔案已存在就報錯，避免不小心覆蓋
   compression: "gzip"                 # h5 壓縮方式，可選 null 關閉

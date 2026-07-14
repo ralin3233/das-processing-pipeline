@@ -1,15 +1,33 @@
+import numpy as np
 from pydantic import BaseModel
+from pydantic import field_validator
 from pathlib import Path
 from typing import Optional
 
 
 class DataConfig(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+
     input_dir: Path
     format: str = "miniseed"
     file_pattern: str = "*.mseed"
     channel_range: tuple[int, int]
     sampling_rate: Optional[int] = None
     time_range: Optional[tuple[str, str]] = None
+    chunk_duration: np.timedelta64 = np.timedelta64(10, "m")
+    chunk_overlap: np.timedelta64 = np.timedelta64(0, "s")
+
+    @field_validator("chunk_duration", "chunk_overlap", mode="before")
+    @classmethod
+    def _parse_timedelta(cls, value):
+        if isinstance(value, np.timedelta64):
+            return value
+        if value is None:
+            return value
+
+        import pandas as pd
+
+        return pd.to_timedelta(value).to_timedelta64()
 
 
 class CoordinateConfig(BaseModel):

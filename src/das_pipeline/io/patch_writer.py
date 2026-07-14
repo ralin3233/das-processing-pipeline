@@ -1,22 +1,28 @@
-import dascore as dc
-from das_pipeline.config import OutputConfig
-import os
 import logging
+from datetime import datetime
+from pathlib import Path
+
+import dascore as dc
+
+from das_pipeline.config import OutputConfig
 
 logger = logging.getLogger(__name__)
 
-def save(patch: dc.Patch, config: OutputConfig, project_name: str) -> str:
-    # 確保儲存目錄存在
-    os.makedirs(config.save_dir, exist_ok=True)
+def save(patch, output: OutputConfig, project_name: str, chunk_index: int = 0) -> Path:
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
 
-    # 生成檔案名稱
-    filename = config.filename_pattern.format(
+    filename = output.filename_pattern.format(
         project_name=project_name,
-        timestamp=patch.coords.get_array("time")[0].astype("datetime64[s]").astype(str)
+        timestamp=timestamp,
+        chunk_index=chunk_index,
     )
-    output_path = os.path.join(config.save_dir, filename)
 
-    # 儲存 Patch
-    patch.io.write(output_path, "dasdae")
-    logger.info(f"成功將帶有地理資訊的 Patch 儲存至 {output_path}")
-    return output_path
+    save_path = Path(output.save_dir) / filename
+    if save_path.exists() and not output.overwrite:
+        raise FileExistsError(f"{save_path} 已存在，且 overwrite=false")
+
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    patch.io.write(str(save_path), file_format="dasdae")
+
+    logger.info(f"成功將帶有地理資訊的 Patch 儲存至 {save_path}")
+    return save_path

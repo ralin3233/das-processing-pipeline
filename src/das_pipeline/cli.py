@@ -15,20 +15,15 @@ def main():
     pass
 
 @app.command()
-def convert(
-    config: Path = typer.Option(
-        ...,
-        "--config", "-c",
-        help="設定檔路徑 (YAML)",
-        exists=True,          # 檔案不存在會直接報錯，不用自己 check
-    ),
-):
-    """執行 MiniSEED -> Patch 轉檔"""
+@app.command()
+def convert(config: Path = typer.Option(..., "--config", "-c", exists=True)):
     cfg = ConvertConfig.from_yaml(config)
     setup_logging(cfg.runtime.log_level)
 
-    save_path = run_convert(cfg)
-    typer.echo(f"✅ 轉檔完成: {save_path}")
+    save_paths = run_convert(cfg)
+    typer.echo(f"✅ 轉檔完成，共產生 {len(save_paths)} 個檔案")
+    for p in save_paths:
+        typer.echo(f"   - {p}")
 
 
 if __name__ == "__main__":
