@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 import dascore as dc
-
+import numpy as np
 from das_pipeline.config import DataConfig
 from das_pipeline.io.miniseed_loader import load as load_miniseed
 
@@ -45,7 +45,7 @@ def iter_chunks(spool: dc.BaseSpool, config: DataConfig) -> Iterator[dc.Patch]:
     """
     chunked_spool = spool.chunk(
         time=config.chunk_duration,
-        overlap=config.chunk_overlap,
+        overlap=config.chunk_overlap/np.timedelta64(1, "s") if config.chunk_overlap else 0,
     )
 
     total = len(chunked_spool)
