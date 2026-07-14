@@ -7,6 +7,9 @@ dependencies = [
     "dascore",
     "obspy",
     "pyyaml",
+    "matplotlib>=3.7",
+    "scipy>=1.10",
+    "typing_extensions",
 ]
 
 [project.optional-dependencies]
