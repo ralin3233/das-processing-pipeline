@@ -1,5 +1,6 @@
 from das_pipeline.config import ConvertConfig
 from das_pipeline.io import spool_loader, coord_utils, patch_writer
+from das_pipeline.preprocessing import run_preprocessing
 
 
 def run_convert(config: ConvertConfig):
@@ -7,6 +8,7 @@ def run_convert(config: ConvertConfig):
 
     save_paths = []
     for chunk_index, patch in spool_loader.iter_chunks(spool, config.data):
+        patch = run_preprocessing(patch, config.preprocessing)
         patch = coord_utils.align(patch, config.coordinate)
 
         save_path = patch_writer.save(

@@ -45,6 +45,14 @@ class OutputConfig(BaseModel):
     compression: Optional[str] = "gzip"
 
 
+class PreprocessingConfig(BaseModel):
+    time_range: Optional[tuple[float, float]] = None
+    distance_range: Optional[tuple[float, float]] = None
+    detrend: Optional[str] = "linear"
+    bandpass: Optional[tuple[float, float]] = None
+    decimate_factor: Optional[int] = None
+
+
 class RuntimeConfig(BaseModel):
     log_level: str = "INFO"
     save_manifest: bool = True
@@ -54,6 +62,7 @@ class ConvertConfig(BaseModel):
     project_name: str
     data: DataConfig
     coordinate: CoordinateConfig
+    preprocessing: PreprocessingConfig = PreprocessingConfig()
     output: OutputConfig
     runtime: RuntimeConfig = RuntimeConfig()
 

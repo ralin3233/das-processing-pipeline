@@ -51,6 +51,6 @@ def iter_chunks(spool: dc.BaseSpool, config: DataConfig) -> Iterator[dc.Patch]:
     total = len(chunked_spool)
     logger.info(f"共切成 {total} 段，每段 {config.chunk_duration}")
 
-    for i, patch in enumerate(chunked_spool):
+    for i, patch in enumerate(chunked_spool): # type: ignore[arg-type]
         logger.info(f"處理第 {i + 1}/{total} 段")
         yield i, patch

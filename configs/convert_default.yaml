@@ -21,6 +21,14 @@ coordinate:
   strict_shape_check: true            # true: shape 對不上直接報錯，方便你抓 bug
                                         # 之後穩定了可以改 false 讓它自動裁切/補值
 
+# ── 前處理設定 ──────────────────────────
+preprocessing:
+  time_range: null                      # 可選：限定時間範圍 ["2023-02-06T10:24:50", "2023-02-06T10:25:00"]
+  distance_range: null                  # 可選：限定距離/通道範圍 [0, 500]
+  detrend: "linear"                     # linear | constant | null（關閉）
+  bandpass: [1.0, 20.0]                # [low_cutoff, high_cutoff] Hz
+  decimate_factor: 4                    # 降採樣倍數，null 則跳過
+
 # ── 輸出設定 ──────────────────────────
 output:
   save_dir: "data/processed"
