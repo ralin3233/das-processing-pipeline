@@ -9,5 +9,10 @@ dependencies = [
     "pyyaml",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
 [project.scripts]
 das-pipeline = "das_pipeline.cli:app"
