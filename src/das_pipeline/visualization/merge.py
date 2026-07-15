@@ -80,12 +80,13 @@ def merge_patches(
         return patches[0]
 
     # 沿時間軸拼接
-    # dascore 的 concat 可沿指定維度拼接
-    merged = dc.concat(
-        patches,
-        dim="time",
-        method="equal",
+    # dascore 沒有頂層的 dc.concat，要透過 spool.concatenate() 來做
+    merged_spool = dc.spool(patches).concatenate(time=None)
+    merged = merged_spool[0]
+
+    time_coord = merged.get_coord("time")
+    logger.info(
+        f"合併完成，time 範圍: {time_coord.min()} ~ {time_coord.max()}"
     )
-    logger.info(f"合併完成，time 範圍: {merged.coords['time'].min()} ~ {merged.coords['time'].max()}")
 
     return merged

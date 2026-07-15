@@ -78,11 +78,27 @@ def plot_spectrogram(
     ts = data[:, channel]
 
     # dt (秒)
-    dt = np.timedelta64(time_coord[1] - time_coord[0], "s") / np.timedelta64(1, "s")
-    fs = 1.0 / float(dt)
+    dt = float((time_coord[1] - time_coord[0]) / np.timedelta64(1, "s"))
+    if not np.isfinite(dt) or dt <= 0:
+        raise ValueError(f"無效的時間取樣間距 dt={dt!r} 秒")
+    fs = 1.0 / dt
 
     # STFT
+    n_samples = ts.shape[0]
+    if nperseg > n_samples:
+        logger.warning(
+            f"nperseg={nperseg} 大於訊號長度 {n_samples}，"
+            f"自動調整為 nperseg={n_samples}"
+        )
+        nperseg = n_samples
+
     if noverlap is None:
+        noverlap = nperseg // 2
+    elif noverlap >= nperseg:
+        logger.warning(
+            f"noverlap={noverlap} 不得大於等於 nperseg={nperseg}，"
+            f"自動調整為 noverlap={nperseg // 2}"
+        )
         noverlap = nperseg // 2
 
     f, t, Sxx = scipy_signal.spectrogram(

@@ -26,17 +26,17 @@ def _get_spatial_axis(patch, channel_spacing: Optional[float] = None):
     label : str
         Y 軸標籤。
     """
-    dist_coord = patch.coords["distance"]
+    dist_coord = patch.get_array("distance")
     n_channels = len(dist_coord)
 
     if channel_spacing is not None:
         dist_vals = np.arange(n_channels, dtype=float) * channel_spacing
         label = "Wavenumber (cycles/m)"
-    elif "m" in str(dist_coord.units):
-        dist_vals = dist_coord.values
+    elif "m" in str(patch.get_coord("distance").units):
+        dist_vals = dist_coord
         label = "Wavenumber (cycles/m)"
     else:
-        dist_vals = dist_coord.values
+        dist_vals = dist_coord
         label = "Wavenumber (cycles/channel)"
 
     return dist_vals, label
@@ -82,8 +82,8 @@ def plot_fk_spectrum(
     matplotlib.figure.Figure
     """
     data = patch.data
-    coords = patch.coords
-    time_coord = coords["time"]
+    #coords = patch.coords
+    time_coord = patch.get_array("time")
     dist_vals, dist_label = _get_spatial_axis(patch, channel_spacing)
 
     # 確保 data 為 (time, distance) 順序
@@ -91,8 +91,17 @@ def plot_fk_spectrum(
         data = data.T
 
     # dt 與 dx
-    dt = np.timedelta64(time_coord[1] - time_coord[0], "s") / np.timedelta64(1, "s")
+    # ``time_coord`` contains datetime64 values.  Dividing the timedelta by one
+    # second preserves sub-second sampling intervals (for example, 4 ms);
+    # constructing ``np.timedelta64(delta, "s")`` truncates those intervals to
+    # zero and makes ``fftfreq`` return inf/nan.
+    dt = float((time_coord[1] - time_coord[0]) / np.timedelta64(1, "s"))
     dx = dist_vals[1] - dist_vals[0] if len(dist_vals) > 1 else 1.0
+
+    if not np.isfinite(dt) or dt <= 0:
+        raise ValueError(f"無效的時間取樣間距 dt={dt!r} 秒")
+    if not np.isfinite(dx) or dx == 0:
+        raise ValueError(f"無效的空間取樣間距 dx={dx!r}")
 
     # 2D FFT
     fft_data = np.fft.fft2(data)

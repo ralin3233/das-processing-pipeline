@@ -155,9 +155,10 @@ def plot(
         spool = dc.spool(str(file_paths[0]))
         patch = spool[0]
 
+    time_values = patch.coords.get_array("time")
     typer.echo(
         f"Patch 維度: {patch.shape}, "
-        f"time: {patch.coords['time'].min()} ~ {patch.coords['time'].max()}"
+        f"time: {time_values.min()} ~ {time_values.max()}"
     )
 
     # --- 繪圖 ---
