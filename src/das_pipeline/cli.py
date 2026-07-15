@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import List, Optional, Tuple
-
+import numpy as np
 import typer
 from typing_extensions import Annotated
 
@@ -66,7 +66,7 @@ def plot(
     ] = None,
     time_range: Annotated[
         Optional[Tuple[str, str]],
-        typer.Option("--time-range", help="時間範圍 [start, end]"),
+        typer.Option("--time-range", help="時間範圍 [start, end] (ISO 格式, e.g. 2023-02-06T10:30:00)"),
     ] = None,
     distance_range: Annotated[
         Optional[Tuple[float, float]],

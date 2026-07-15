@@ -2,7 +2,7 @@
 
 import logging
 from typing import Optional
-
+import numpy as np
 import dascore as dc
 
 logger = logging.getLogger(__name__)
@@ -33,5 +33,5 @@ def detrend(patch: dc.Patch, method: Optional[str] = "linear") -> dc.Patch:
 
     logger.info("執行 %s detrend", method)
     patch = patch.detrend(dim="time", type=method)
-    logger.info("detrend 完成，shape: %s", patch.data.shape)
+    logger.info("detrend 完成，shape: %s", np.asarray(patch.data).shape)
     return patch

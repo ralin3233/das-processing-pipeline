@@ -27,11 +27,44 @@ def _parse_timestamp(filename: str) -> Optional[str]:
     return None
 
 
+def _crop_to_core(patch: dc.Patch) -> dc.Patch:
+    """根據 patch.attrs 中的 core_time_start / core_time_end 裁切至核心範圍。
+
+    若缺少 attrs 或裁切後範圍無效，則回傳原始 patch（不裁切）。
+    """
+    core_start_str = patch.attrs.get("core_time_start")
+    core_end_str = patch.attrs.get("core_time_end")
+
+    if not core_start_str or not core_end_str:
+        logger.debug(f"patch 缺少 core_time attrs，跳過裁切")
+        return patch
+
+    try:
+        core_start = np.datetime64(core_start_str, "ns")
+        core_end = np.datetime64(core_end_str, "ns")
+    except Exception:
+        logger.warning(f"無法解析 core_time attrs: {core_start_str}, {core_end_str}，跳過裁切")
+        return patch
+
+    if core_end <= core_start:
+        logger.warning(f"core range 為空 [{core_start}, {core_end}]，跳過裁切")
+        return patch
+
+    try:
+        cropped = patch.select(time=(core_start, core_end))
+        return cropped
+    except Exception as e:
+        logger.warning(f"core range 裁切失敗: {e}，使用原始 patch")
+        return patch
+
+
 def merge_patches(
     file_paths: List[Path],
     sort_by: str = "chunk_index",
 ) -> dc.Patch:
     """將多個 chunk .h5 檔案沿時間軸合併為單一 Patch。
+    合併前會依據各 chunk 儲存的 core_time_start/end attrs 裁切，
+    以消除 taper 造成的空隙。
 
     Parameters
     ----------
@@ -79,9 +112,19 @@ def merge_patches(
         logger.info("只有一個檔案，無須合併")
         return patches[0]
 
+    # 依 core_time 裁切每個 patch，消除 taper 空隙
+    cropped_patches = []
+    for patch in patches:
+        cropped = _crop_to_core(patch)
+        cropped_patches.append(cropped)
+
+        time_coord = cropped.get_coord("time")
+        logger.debug(
+            f"裁切後 time 範圍: {time_coord.min()} ~ {time_coord.max()}"
+        )
+
     # 沿時間軸拼接
-    # dascore 沒有頂層的 dc.concat，要透過 spool.concatenate() 來做
-    merged_spool = dc.spool(patches).concatenate(time=None)
+    merged_spool = dc.spool(cropped_patches).concatenate(time=None)
     merged = merged_spool[0]
 
     time_coord = merged.get_coord("time")

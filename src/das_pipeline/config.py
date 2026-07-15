@@ -15,9 +15,10 @@ class DataConfig(BaseModel):
     sampling_rate: Optional[int] = None
     time_range: Optional[tuple[str, str]] = None
     chunk_duration: np.timedelta64 = np.timedelta64(10, "m")
-    chunk_overlap: np.timedelta64 = np.timedelta64(0, "s")
+    taper_ratio: float = 0.05
+    filter_safety_samples: int = 0
 
-    @field_validator("chunk_duration", "chunk_overlap", mode="before")
+    @field_validator("chunk_duration", mode="before")
     @classmethod
     def _parse_timedelta(cls, value):
         if isinstance(value, np.timedelta64):
