@@ -29,7 +29,7 @@ class TestMiniSeedLoader(unittest.TestCase):
             write_mseed(input_dir / "002.mseed", "002", np.array([10, 11, 12], dtype=np.int32))
 
             # Act: 以資料設定載入資料，取得 DASCore Patch。
-            config = DataConfig(input_dir=input_dir, channel_range=(0, 1))
+            config = DataConfig(input_dir=input_dir)
 
             patch = load(config)
 
@@ -54,7 +54,7 @@ class TestMiniSeedLoader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Arrange: 提供空目錄，模擬沒有任何 *.mseed 檔案的情況。
             input_dir = Path(temp_dir)
-            config = DataConfig(input_dir=input_dir, channel_range=(0, 1))
+            config = DataConfig(input_dir=input_dir)
 
             # Assert: loader 應該明確回報找不到檔案。
             with self.assertRaisesRegex(FileNotFoundError, r"找不到符合 \*\.mseed 的檔案"):

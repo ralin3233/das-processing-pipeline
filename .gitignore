@@ -18,3 +18,5 @@ outputs/
 # IDE
 .vscode/
 .idea/
+
+configs/convert_default.yaml

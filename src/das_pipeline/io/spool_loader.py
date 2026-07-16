@@ -22,15 +22,16 @@ def get_spool(config: DataConfig) -> dc.BaseSpool:
         logger.info(f"已讀入 miniSEED 資料，建立 1 個 Patch 的 spool")
     else:
         input_dir = Path(config.input_dir)
-        files = sorted(input_dir.glob(config.file_pattern))
 
-        if not files:
-            raise FileNotFoundError(
-                f"在 {input_dir} 找不到符合 {config.file_pattern} 的檔案"
+        if not input_dir.is_dir():
+            raise NotADirectoryError(
+                f"input_dir 應為目錄路徑: {input_dir}"
             )
 
-        logger.info(f"找到 {len(files)} 個檔案，格式: {config.format}")
-        spool = dc.spool([str(f) for f in files])
+        # 把目錄交給 dascore 的 DirectorySpool 管理，
+        # 它會自動掃描目錄下所有支援的 DAS 格式（HDF5 等），並建立 Lazy Index。
+        logger.info(f"從目錄建立 spool: {input_dir} (格式: {config.format})")
+        spool = dc.spool(input_dir)
 
     if config.time_range:
         logger.info(f"套用時間範圍篩選: {config.time_range}")
@@ -107,6 +108,7 @@ def iter_chunks(spool: dc.BaseSpool, config: DataConfig) -> Iterator[dc.Patch]:
     chunked_spool = spool.chunk(
         time=config.chunk_duration,
         overlap=overlap_sec,
+        #conflict="raise",
     )
 
     total = len(chunked_spool)

@@ -11,7 +11,6 @@ class DataConfig(BaseModel):
     input_dir: Path
     format: str = "miniseed"
     file_pattern: str = "*.mseed"
-    channel_range: tuple[int, int]
     sampling_rate: Optional[int] = None
     time_range: Optional[tuple[str, str]] = None
     chunk_duration: np.timedelta64 = np.timedelta64(10, "m")
@@ -40,7 +39,7 @@ class CoordinateConfig(BaseModel):
 
 class OutputConfig(BaseModel):
     save_dir: Path
-    filename_pattern: str = "{project_name}_{timestamp}.h5"
+    filename_pattern: str = "{project_name}_{timestamp}_chunk{chunk_index:04d}.h5"
     format: str = "dascore_h5"
     overwrite: bool = False
     compression: Optional[str] = "gzip"
