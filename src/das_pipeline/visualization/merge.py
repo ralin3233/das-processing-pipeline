@@ -4,7 +4,7 @@ import logging
 import re
 from pathlib import Path
 from typing import List, Optional
-
+import pandas as pd
 import dascore as dc
 import numpy as np
 
@@ -40,8 +40,8 @@ def _crop_to_core(patch: dc.Patch) -> dc.Patch:
         return patch
 
     try:
-        core_start = np.datetime64(core_start_str, "ns")
-        core_end = np.datetime64(core_end_str, "ns")
+        core_start = np.datetime64(core_start_str)
+        core_end = np.datetime64(core_end_str)
     except Exception:
         logger.warning(f"無法解析 core_time attrs: {core_start_str}, {core_end_str}，跳過裁切")
         return patch

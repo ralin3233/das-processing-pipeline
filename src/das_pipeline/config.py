@@ -53,6 +53,16 @@ class PreprocessingConfig(BaseModel):
     decimate_factor: Optional[int] = None
 
 
+class TeleseismicConfig(BaseModel):
+    """遠震地層放大效應分析設定。"""
+    event_distance_km: float
+    event_origin_time: str          # ISO 格式，如 "2023-02-06T01:17:35"
+    reference_channels: int = 10
+    velocity_min: float = 2.0       # 最慢群速度 (km/s)
+    velocity_max: float = 4.0       # 最快群速度 (km/s)
+    skip_channels: int = 0          # 跳過前 N 個 channel（井口附近易受雜訊干擾）
+
+
 class RuntimeConfig(BaseModel):
     log_level: str = "INFO"
     save_manifest: bool = True

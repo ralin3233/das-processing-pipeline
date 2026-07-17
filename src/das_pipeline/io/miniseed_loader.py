@@ -11,12 +11,12 @@ def load(config: DataConfig) -> dc.Patch:
     """讀取 config.input_dir 底下的 MiniSEED 檔案，回傳 DASCore Patch"""
     
     input_dir = Path(config.input_dir)
-    files = sorted(input_dir.glob("*.mseed"))
+    files = sorted(input_dir.glob(config.file_pattern))
     
     if not files:
-        logger.error(f"在 {input_dir} 找不到符合 *.mseed 的檔案")
+        logger.error(f"在 {input_dir} 找不到符合 {config.file_pattern} 的檔案")
         raise FileNotFoundError(
-            f"在 {input_dir} 找不到符合 *.mseed 的檔案"
+            f"在 {input_dir} 找不到符合 {config.file_pattern} 的檔案"
         )
     
     # ==========================================

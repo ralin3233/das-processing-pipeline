@@ -42,7 +42,7 @@ def bandpass(
     # 從 attrs 讀取 taper_ratio（若無則用預設值 0.05）
     taper_ratio = patch.attrs.get("taper_ratio", 0.05)
     patch = patch.taper(time=taper_ratio)
-    patch = patch.taper(distance=taper_ratio)
+    #patch = patch.taper(distance=taper_ratio)
     logger.info("執行 bandpass 濾波: [%s, %s] Hz (taper=%.2f)", low, high, taper_ratio)
     patch = patch.pass_filter(time=(low, high))
     logger.info("bandpass 完成，shape: %s", np.asarray(patch.data).shape)
