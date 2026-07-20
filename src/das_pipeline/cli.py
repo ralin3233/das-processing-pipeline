@@ -417,5 +417,87 @@ def plot(
         plt.show()
 
 
+@app.command()
+def overlay(
+    dir: Annotated[
+        Path,
+        typer.Argument(..., help="包含 CSV 檔案的目錄路徑", exists=True),
+    ],
+    pattern: Annotated[
+        str,
+        typer.Option("--pattern", "-p", help="CSV 檔案 glob pattern"),
+    ] = "*.csv",
+    labels: Annotated[
+        Optional[str],
+        typer.Option("--labels", "-l", help="圖例標籤，逗號分隔（預設為檔名）"),
+    ] = None,
+    save: Annotated[
+        Optional[Path],
+        typer.Option("--save", "-s", help="輸出圖片目錄"),
+    ] = None,
+    title: Annotated[
+        Optional[str],
+        typer.Option("--title", "-t", help="圖表自訂標題"),
+    ] = None,
+    dpi: Annotated[
+        int,
+        typer.Option("--dpi", help="圖片解析度"),
+    ] = 150,
+    no_display: Annotated[
+        bool,
+        typer.Option("--no-display", help="存檔模式下不彈出視窗"),
+    ] = False,
+):
+    """疊加顯示多個事件的遠震放大倍率曲線，並繪製中位數線。
+
+    讀取多個 ``das-pipeline amplification --csv`` 輸出的 CSV 檔案，
+    在同一張圖上疊加各事件的放大倍率曲線，並以紅色虛線繪製中位數線。
+
+    \b
+    使用範例：
+        das-pipeline overlay results/ \\
+            --pattern "*.csv" --labels "M6.5,M7.0,M7.2" \\
+            --save results/ --title "Amplification Overlay"
+    """
+    import logging
+
+    import matplotlib
+
+    if no_display:
+        matplotlib.use("Agg")
+
+    from das_pipeline.overlay import plot_overlay
+
+    logger = logging.getLogger(__name__)
+
+    # 收集 CSV 檔案
+    csv_files = sorted(dir.glob(pattern))
+    if not csv_files:
+        typer.echo(f"❌ 在 {dir} 找不到符合 {pattern} 的檔案")
+        raise typer.Exit(1)
+    typer.echo(f"找到 {len(csv_files)} 個 CSV 檔案")
+
+    # 解析圖例標籤
+    label_list: Optional[list[str]] = None
+    if labels is not None:
+        label_list = [lbl.strip() for lbl in labels.split(",")]
+
+    result = plot_overlay(
+        csv_paths=csv_files,
+        labels=label_list,
+        save_dir=Path(save) if save else None,
+        title=title,
+        dpi=dpi,
+        show=not no_display,
+    )
+
+    if result is not None:
+        typer.echo(f"✅ 疊圖已儲存: {result}")
+    elif save is None:
+        typer.echo("✅ 疊圖完成，已顯示於視窗")
+    else:
+        typer.echo("❌ 疊圖失敗，請檢查 CSV 檔案與 log")
+
+
 if __name__ == "__main__":
     app()

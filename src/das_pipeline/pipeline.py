@@ -7,7 +7,7 @@ def run_convert(config: ConvertConfig):
     spool = spool_loader.get_spool(config.data)
 
     save_paths = []
-    for chunk_index, patch in spool_loader.iter_chunks(spool, config.data):
+    for chunk_index, patch in spool_loader.iter_chunks(spool, config.data): # type: ignore[call-arg]
         patch = run_preprocessing(patch, config.preprocessing)
         patch = coord_utils.align(patch, config.coordinate)
         save_path = patch_writer.save(

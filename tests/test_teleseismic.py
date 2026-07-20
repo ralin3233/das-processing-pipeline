@@ -152,3 +152,20 @@ class TestComputeAmplification:
         )
         result = compute_amplification(patch, config)
         assert result is None
+
+    def test_skip_channels_preserves_original_indices(self):
+        patch = _make_dummy_patch(n_time=1000, n_channels=50)
+        config = TeleseismicConfig(
+            event_distance_km=10,
+            event_origin_time="2023-02-06T01:17:35",
+            skip_channels=10,
+        )
+
+        result = compute_amplification(patch, config)
+
+        assert result is not None
+        assert result["channel_indices"][0] == 10
+        np.testing.assert_array_equal(
+            result["channel_indices"],
+            np.arange(10, 10 + len(result["amplification"])),
+        )

@@ -110,8 +110,9 @@ def _extract_wave_train(
 def _compute_channel_amplitudes(patch: dc.Patch) -> np.ndarray:
     """計算每個 channel 的振幅中位數（絕對值的中位數）。
 
-    Patch 的 dims 為 ("distance", "time")，data shape = (n_channels, n_time)。
-    沿 time 軸（axis=1）取 median，得到每個 channel 的振幅中位數。
+    依 Patch 的 ``time`` 維度取 median，得到每個 channel 的振幅中位數。
+    不假設資料維度順序，因此同時支援 ``("distance", "time")`` 與
+    ``("time", "distance")`` 的 Patch。
 
     Parameters
     ----------
@@ -124,9 +125,9 @@ def _compute_channel_amplitudes(patch: dc.Patch) -> np.ndarray:
         每個 channel 的振幅中位數，shape = (n_channels,)。
     """
     data = np.asarray(patch.data)
-    # data shape: (n_channels, n_time)
-    # 沿 time 軸取 median，得到每個 channel 一個值
-    amplitudes = np.median(np.abs(data), axis=1)
+    time_axis = patch.dims.index("time")
+    # 沿實際的 time 軸取 median，得到每個 channel 一個值。
+    amplitudes = np.median(np.abs(data), axis=time_axis)
     logger.info("通道振幅計算完成，shape: %s", amplitudes.shape)
     return amplitudes
 
@@ -189,7 +190,7 @@ def compute_amplification(
     -------
     dict or None
         {
-            "channel_indices": np.ndarray,     # channel 索引 (0-based)
+            "channel_indices": np.ndarray,     # 原始 channel 索引 (0-based)
             "amplification": np.ndarray,       # 每個 channel 的放大倍率
             "reference_amplitude": float,      # 基準振幅
             "n_channels": int,                 # 總 channel 數
@@ -212,11 +213,14 @@ def compute_amplification(
         return None
 
     amplitudes = _compute_channel_amplitudes(wave_patch)
+    # 保留原始索引，避免跳過井口 channel 後圖表與 CSV 從 0 重新編號。
+    channel_indices = np.arange(len(amplitudes))
 
     skip = config.skip_channels
     if skip > 0:
         logger.info("跳過前 %d 個（井口附近）channel，不參與放大倍率計算", skip)
         amplitudes = amplitudes[skip:]
+        channel_indices = channel_indices[skip:]
 
     reference = _compute_reference_amplitude(
         amplitudes, config.reference_channels,
@@ -232,7 +236,7 @@ def compute_amplification(
     )
 
     return {
-        "channel_indices": np.arange(n_channels),
+        "channel_indices": channel_indices,
         "amplification": amplification,
         "reference_amplitude": reference,
         "n_channels": n_channels,
