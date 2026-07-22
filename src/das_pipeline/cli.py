@@ -198,7 +198,7 @@ def amplification(
         with open(csv_path, "w", newline="") as f:
             writer = csv_module.writer(f)
             writer.writerow(["channel_index", "amplification", "reference_amplitude"])
-            for ch, amp in zip(result["channel_indices"], result["amplification"]):
+            for ch, amp in zip(range(result["n_channels"]), result["amplification"]):
                 writer.writerow([ch, f"{amp:.6f}", f"{result['reference_amplitude']:.6e}"])
         typer.echo(f"✅ CSV 已儲存: {csv_path}")
 

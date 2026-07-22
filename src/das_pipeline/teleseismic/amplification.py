@@ -260,4 +260,5 @@ def compute_amplification(
         "n_channels": n_channels,
         "time_window": (str(t_start), str(t_end)),
         "event_distance_km": config.event_distance_km,
+        "distance_unit": patch.attrs.get("distance_unit", "m"),
     }

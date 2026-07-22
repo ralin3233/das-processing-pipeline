@@ -20,3 +20,5 @@ outputs/
 .idea/
 
 configs/convert_default.yaml
+
+batch*

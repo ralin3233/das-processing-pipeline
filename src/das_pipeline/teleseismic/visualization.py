@@ -78,8 +78,11 @@ def plot_amplification(
     ax.axvline(x=1.0, color="gray", linestyle="--", linewidth=1.0, alpha=0.7,
                label="Baseline (amp=1.0)")
 
+    # 根據 distance_unit 決定 Y 軸標籤
+    distance_unit = results[0].get("distance_unit", "m") if results else "m"
+    ylabel = "Distance (m)" if distance_unit == "m" else f"Distance ({distance_unit})"
     ax.set_xlabel("Normalized Amplitude")
-    ax.set_ylabel("Distance (m)")
+    ax.set_ylabel(ylabel)
     ax.set_title(title or "Teleseismic Amplification")
 
     # 縱軸反轉（讓井口/小距離在上方，井底/大距離在下方）

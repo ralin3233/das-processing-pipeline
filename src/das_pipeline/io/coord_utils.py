@@ -290,9 +290,14 @@ def align(patch: dc.Patch, config: CoordinateConfig) -> dc.Patch:
     # ── 步驟 1：載入幾何座標 ──
     geometry_path = Path(config.fiber_geometry_file)
     if not geometry_path.exists():
-        raise FileNotFoundError(
-            f"geometry.csv 不存在: {geometry_path}"
+        logger.warning(
+            "geometry.csv 不存在 (%s)，跳過座標對齊，沿用原始 distance 軸（channel index）",
+            geometry_path,
         )
+        patch = patch.update_attrs(distance_unit=config.distance_unit)
+        if config.input_unit == "phase":
+            return _convert_phase_to_strain_rate(patch, config)
+        return patch
 
     geometry_df = _load_geometry(geometry_path)
     distance_map = _build_distance_map(geometry_df)
@@ -347,5 +352,6 @@ def align(patch: dc.Patch, config: CoordinateConfig) -> dc.Patch:
                 f"dims shape={expected_shape}"
             )
 
+    patch = patch.update_attrs(distance_unit="m")
     logger.info("座標對齊完成")
     return patch
