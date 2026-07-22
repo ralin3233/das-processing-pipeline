@@ -35,6 +35,25 @@ class CoordinateConfig(BaseModel):
     interpolation: str = "linear"
     distance_unit: str = "m"
     strict_shape_check: bool = True
+    input_unit: str = "strain_rate"
+    phase_strain_constant: float = 11.6e-9
+    missing_channel_strategy: str = "interpolate"
+
+    @field_validator("input_unit")
+    @classmethod
+    def _validate_input_unit(cls, value):
+        allowed = {"strain_rate", "phase"}
+        if value not in allowed:
+            raise ValueError(f"input_unit 必須為 {allowed}，目前為 {value}")
+        return value
+
+    @field_validator("missing_channel_strategy")
+    @classmethod
+    def _validate_missing_strategy(cls, value):
+        allowed = {"interpolate", "crop", "error"}
+        if value not in allowed:
+            raise ValueError(f"missing_channel_strategy 必須為 {allowed}，目前為 {value}")
+        return value
 
 
 class OutputConfig(BaseModel):

@@ -133,13 +133,51 @@ class TestComputeAmplification:
         result = compute_amplification(patch, config)
         assert result is not None, f"result is None, patch time range might not cover the window"
         assert "amplification" in result
-        assert "channel_indices" in result
+        assert "distances" in result
         assert "reference_amplitude" in result
-        assert len(result["channel_indices"]) == 50
         assert len(result["amplification"]) == 50
+        assert len(result["distances"]) == 50
         assert result["reference_amplitude"] > 0
         # 確認放大的 channel 倍率 > 1（前 50% channel 被模擬放大 2x）
         assert np.any(result["amplification"] > 1.0)
+
+    def test_distances_equals_patch_coord(self):
+        """確認 distances 取自 Patch 的 distance coord，且沒有被重新編排。"""
+        patch = _make_dummy_patch(n_time=1000, n_channels=50)
+        config = TeleseismicConfig(
+            event_distance_km=10,
+            event_origin_time="2023-02-06T01:17:35",
+        )
+        result = compute_amplification(patch, config)
+        assert result is not None
+        # 檢查距離等於 Patch distance coord
+        expected_distances = np.arange(50, dtype=float)
+        np.testing.assert_array_equal(result["distances"], expected_distances)
+
+    def test_distances_not_reindexed(self):
+        """若 Patch distance coord 有 gap（如 1,2,5），distances 應保持原始值。"""
+        time = pd.date_range(start="2023-02-06T01:17:00", periods=1000, freq="50ms")
+        rng = np.random.default_rng(42)
+        data = rng.normal(loc=0, scale=1.0, size=(1000, 3))
+        patch = dc.Patch(
+            data=data,
+            coords={
+                "time": time,
+                "distance": np.array([1235, 1236, 1240], dtype=float),
+            },
+            dims=["time", "distance"],
+        )
+        config = TeleseismicConfig(
+            event_distance_km=10,
+            event_origin_time="2023-02-06T01:17:35",
+        )
+        result = compute_amplification(patch, config)
+        assert result is not None
+        # distances 應保持原始值 [1235, 1236, 1240]，而非重新編排成 [0, 1, 2]
+        np.testing.assert_array_equal(
+            result["distances"],
+            np.array([1235, 1236, 1240], dtype=float),
+        )
 
     def test_no_overlap(self):
         # patch 時間在事件之前
@@ -153,7 +191,8 @@ class TestComputeAmplification:
         result = compute_amplification(patch, config)
         assert result is None
 
-    def test_skip_channels_preserves_original_indices(self):
+    def test_skip_channels_preserves_distances(self):
+        """skip_channels 裁切後 distances 仍應保持原始值。"""
         patch = _make_dummy_patch(n_time=1000, n_channels=50)
         config = TeleseismicConfig(
             event_distance_km=10,
@@ -164,8 +203,8 @@ class TestComputeAmplification:
         result = compute_amplification(patch, config)
 
         assert result is not None
-        assert result["channel_indices"][0] == 10
+        # 跳過前 10 個 channel（距離 0~9），應保留距離 10~49
         np.testing.assert_array_equal(
-            result["channel_indices"],
-            np.arange(10, 10 + len(result["amplification"])),
+            result["distances"],
+            np.arange(10.0, 50.0),
         )

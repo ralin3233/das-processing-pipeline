@@ -166,6 +166,25 @@ def _compute_reference_amplitude(
     return reference
 
 
+def _extract_distances(patch: dc.Patch) -> np.ndarray:
+    """從 Patch 的 distance coord 提取實際距離值（米）。
+
+    Parameters
+    ----------
+    patch : dc.Patch
+        DAS Patch。
+
+    Returns
+    -------
+    np.ndarray
+        每個 channel 的距離值（米），shape = (n_channels,)。
+    """
+    dist_coord = patch.get_coord("distance")
+    distances = np.asarray(dist_coord.values).ravel()
+    logger.info("距離軸範圍: [%.2f, %.2f] m", distances[0], distances[-1])
+    return distances
+
+
 def compute_amplification(
     patch: dc.Patch,
     config: TeleseismicConfig,
@@ -190,7 +209,7 @@ def compute_amplification(
     -------
     dict or None
         {
-            "channel_indices": np.ndarray,     # 原始 channel 索引 (0-based)
+            "distances": np.ndarray,           # 每個 channel 的實際距離（米），取自 Patch distance coord
             "amplification": np.ndarray,       # 每個 channel 的放大倍率
             "reference_amplitude": float,      # 基準振幅
             "n_channels": int,                 # 總 channel 數
@@ -213,14 +232,13 @@ def compute_amplification(
         return None
 
     amplitudes = _compute_channel_amplitudes(wave_patch)
-    # 保留原始索引，避免跳過井口 channel 後圖表與 CSV 從 0 重新編號。
-    channel_indices = np.arange(len(amplitudes))
+    distances = _extract_distances(wave_patch)
 
     skip = config.skip_channels
     if skip > 0:
         logger.info("跳過前 %d 個（井口附近）channel，不參與放大倍率計算", skip)
         amplitudes = amplitudes[skip:]
-        channel_indices = channel_indices[skip:]
+        distances = distances[skip:]
 
     reference = _compute_reference_amplitude(
         amplitudes, config.reference_channels,
@@ -236,7 +254,7 @@ def compute_amplification(
     )
 
     return {
-        "channel_indices": channel_indices,
+        "distances": distances,
         "amplification": amplification,
         "reference_amplitude": reference,
         "n_channels": n_channels,

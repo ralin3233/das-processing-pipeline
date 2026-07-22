@@ -19,16 +19,17 @@ def plot_amplification(
     dpi: int = 150,
     show: bool = True,
 ) -> Optional[Path]:
-    """繪製遠震地層放大倍率 vs. channel index 圖。
+    """繪製遠震地層放大倍率 vs. 實際距離 圖。
 
-    橫軸為正規化振幅（放大倍率），縱軸為 channel index（0=井口, N-1=井底）。
+    橫軸為正規化振幅（放大倍率），縱軸為距離（米）。
+    若結果有 "distances" 欄位則使用距離，否則退回使用 channel index。
     支援多事件疊圖，不同事件用不同顏色區分。
 
     Parameters
     ----------
     results : list[dict]
         compute_amplification() 回傳的結果字典列表，每個元素包含
-        "channel_indices", "amplification", "event_distance_km" 等。
+        "channel_indices", "distances", "amplification", "event_distance_km" 等。
     save_dir : Path or None
         若指定，將圖片存到該目錄。
     labels : list[str] or None
@@ -64,24 +65,24 @@ def plot_amplification(
             logger.warning("第 %d 個結果為 None，跳過", i + 1)
             continue
 
-        channels = result["channel_indices"]
         amp = result["amplification"]
-        dist = result.get("event_distance_km", "?")
+        distances = result["distances"]
+        dist_km = result.get("event_distance_km", "?")
 
-        label = f"{labels[i]} (D={dist} km)"
-        ax.plot(amp, channels, label=label, linewidth=1.5)
-        # 在每個事件曲線上標記起點
-        ax.scatter(amp[0], channels[0], s=15, zorder=3)
+        label = f"{labels[i]} (D={dist_km} km)"
+        ax.plot(amp, distances, label=label, linewidth=1.5)
+        # 在每個事件曲線上標記起點（最深處 = 最大距離）
+        ax.scatter(amp[0], distances[0], s=15, zorder=3)
 
     # 基準線
     ax.axvline(x=1.0, color="gray", linestyle="--", linewidth=1.0, alpha=0.7,
                label="Baseline (amp=1.0)")
 
     ax.set_xlabel("Normalized Amplitude")
-    ax.set_ylabel("Channel Index (0 = wellhead)")
+    ax.set_ylabel("Distance (m)")
     ax.set_title(title or "Teleseismic Amplification")
 
-    # 縱軸反轉（讓井口在上方）
+    # 縱軸反轉（讓井口/小距離在上方，井底/大距離在下方）
     ax.invert_yaxis()
     ax.grid(True, alpha=0.3)
     ax.legend(loc="best")
