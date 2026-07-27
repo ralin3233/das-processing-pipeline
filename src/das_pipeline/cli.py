@@ -197,9 +197,9 @@ def amplification(
         csv_path = save_dir / "teleseismic_amplification.csv"
         with open(csv_path, "w", newline="") as f:
             writer = csv_module.writer(f)
-            writer.writerow(["channel_index", "amplification", "reference_amplitude"])
-            for ch, amp in zip(range(result["n_channels"]), result["amplification"]):
-                writer.writerow([ch, f"{amp:.6f}", f"{result['reference_amplitude']:.6e}"])
+            writer.writerow(["distance_m", "amplification", "reference_amplitude"])
+            for dist, amp in zip(result["distances"], result["amplification"]):
+                writer.writerow([f"{dist:.2f}", f"{amp:.6f}", f"{result['reference_amplitude']:.6e}"])
         typer.echo(f"✅ CSV 已儲存: {csv_path}")
 
     # --- 繪圖 ---
@@ -443,6 +443,10 @@ def overlay(
         int,
         typer.Option("--dpi", help="圖片解析度"),
     ] = 150,
+    csv: Annotated[
+        bool,
+        typer.Option("--csv", help="同時輸出疊圖資料至 CSV（各事件 + 中位數）"),
+    ] = False,
     no_display: Annotated[
         bool,
         typer.Option("--no-display", help="存檔模式下不彈出視窗"),
@@ -489,10 +493,13 @@ def overlay(
         title=title,
         dpi=dpi,
         show=not no_display,
+        csv_output=csv,
     )
 
     if result is not None:
         typer.echo(f"✅ 疊圖已儲存: {result}")
+        if csv and save is not None:
+            typer.echo(f"✅ 疊圖 CSV 已儲存: {save}/amplification_overlay.csv")
     elif save is None:
         typer.echo("✅ 疊圖完成，已顯示於視窗")
     else:

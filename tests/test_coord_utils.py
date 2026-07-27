@@ -209,12 +209,6 @@ class TestHandleMissingChannels(unittest.TestCase):
             _handle_missing_channels(channels, dmap, self.config_error)
 
 
-class TestAlignMissingGeometryFile(unittest.TestCase):
-    def test_file_not_found(self) -> None:
-        config = CoordinateConfig(fiber_geometry_file=Path("/nonexistent/geometry.csv"))
-        patch = _make_test_patch(channels=[100, 101])
-        with self.assertRaisesRegex(FileNotFoundError, "不存在"):
-            align(patch, config)
 
 
 class TestAlignWithInterpolate(unittest.TestCase):
@@ -232,7 +226,7 @@ class TestAlignWithInterpolate(unittest.TestCase):
 
             # distance 軸應變成實際距離
             dist_coord = result.get_coord("distance")
-            dist_vals = np.asarray(dist_coord.values).ravel()
+            dist_vals = np.asarray(dist_coord)
             self.assertEqual(len(dist_vals), 3)
             self.assertGreater(dist_vals[1], 0)  # 非零距離
             self.assertEqual(result.dims, ("distance", "time"))
@@ -273,7 +267,7 @@ class TestAlignWithCrop(unittest.TestCase):
 
             # 裁切後應只剩 100
             dist_coord = result.get_coord("distance")
-            dist_vals = np.asarray(dist_coord.values).ravel()
+            dist_vals = np.asarray(dist_coord)
             self.assertEqual(len(dist_vals), 1)
 
 

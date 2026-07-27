@@ -231,7 +231,7 @@ def _convert_phase_to_strain_rate(
         轉換後的 Patch（單位為應變率）。
     """
     time_coord = patch.get_coord("time")
-    time_vals = time_coord.values
+    time_vals = np.asarray(time_coord)
     if len(time_vals) < 2:
         logger.warning("時間軸長度不足 2，無法計算取樣率，跳過單位轉換")
         return patch
@@ -306,7 +306,7 @@ def align(patch: dc.Patch, config: CoordinateConfig) -> dc.Patch:
     distance_coord = patch.get_coord("distance")
 
     # dascore 的 coord.values 可能是 tuple 或 ndarray，安全轉換
-    patch_channels = np.asarray(distance_coord.values).ravel()
+    patch_channels = np.asarray(np.asarray(distance_coord))
 
     logger.info(
         "Patch 距離軸範圍: [%s, %s]，共 %d 個 channel",

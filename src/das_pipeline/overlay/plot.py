@@ -1,7 +1,7 @@
 """
 Overlay plot of multiple teleseismic amplification CSVs with median curve.
 
-Each CSV is expected to have columns: channel_index, amplification, reference_amplitude
+Each CSV is expected to have columns: distance_m, amplification, reference_amplitude
 (as produced by `das-pipeline amplification --csv`).
 """
 
@@ -27,19 +27,20 @@ def _load_csv(csv_path: Path) -> tuple[np.ndarray, np.ndarray]:
 
     Returns
     -------
-    channel_indices : ndarray (n_channels,)
+    distances : ndarray (n_channels,)
+        Distance in metres for each channel.
     amplification : ndarray (n_channels,)
     """
-    channels: list[int] = []
+    distances: list[float] = []
     amps: list[float] = []
 
     with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            channels.append(int(row["channel_index"]))
+            distances.append(float(row["distance_m"]))
             amps.append(float(row["amplification"]))
 
-    return np.array(channels), np.array(amps)
+    return np.array(distances), np.array(amps)
 
 
 def plot_overlay(
@@ -50,6 +51,7 @@ def plot_overlay(
     figsize: tuple[float, float] = (8, 6),
     dpi: int = 150,
     show: bool = True,
+    csv_output: bool = False,
 ) -> Optional[Path]:
     """
     Plot overlay of multiple amplification curves with a median line.
@@ -93,15 +95,15 @@ def plot_overlay(
         labels = [Path(p).stem for p in csv_paths]
 
     # Load all CSV data
-    all_channels: list[np.ndarray] = []
+    all_distances: list[np.ndarray] = []
     all_amps: list[np.ndarray] = []
 
     for i, csv_path in enumerate(csv_paths):
         try:
-            channels, amps = _load_csv(csv_path)
-            all_channels.append(channels)
+            distances, amps = _load_csv(csv_path)
+            all_distances.append(distances)
             all_amps.append(amps)
-            logger.info("Loaded %s: %d channels", csv_path.name, len(channels))
+            logger.info("Loaded %s: %d channels", csv_path.name, len(distances))
         except Exception as e:
             logger.error("Failed to load %s: %s", csv_path, e)
             continue
@@ -110,27 +112,19 @@ def plot_overlay(
         logger.warning("No valid data loaded.")
         return None
 
-    # Compute intersection of channel indices across all CSVs
-    common_channels = all_channels[0]
-    for ch in all_channels[1:]:
-        common_channels = np.intersect1d(common_channels, ch)
+    # Use the distance axis from the first CSV as the common reference
+    ref_distances = all_distances[0]
+    n_common = len(ref_distances)
+    logger.info("Reference distances: %d points", n_common)
 
-    if len(common_channels) == 0:
-        logger.warning("No common channel indices across CSVs.")
-        return None
+    # Interpolate each event's amplification onto the common distance axis
+    interp_amps: list[np.ndarray] = []
+    for distances, amps in zip(all_distances, all_amps):
+        interp = np.interp(ref_distances, distances, amps)
+        interp_amps.append(interp)
 
-    logger.info("Common channel indices: %d channels", len(common_channels))
-
-    # Align each event's amplification to the common channel indices
-    aligned_amps: list[np.ndarray] = []
-    for channels, amps in zip(all_channels, all_amps):
-        mask = np.isin(channels, common_channels)
-        aligned = amps[mask]
-        aligned_amps.append(aligned)
-
-    ref_channels = common_channels
-    amp_stack = np.stack(aligned_amps, axis=0)       # (n_events, n_channels)
-    median_amps = np.median(amp_stack, axis=0)       # (n_channels,)
+    amp_stack = np.stack(interp_amps, axis=0)    # (n_events, n_channels)
+    median_amps = np.median(amp_stack, axis=0)   # (n_channels,)
 
     # ------------------------------------------------------------------
     # Plot
@@ -138,19 +132,19 @@ def plot_overlay(
     fig, ax = plt.subplots(figsize=figsize)
 
     # Use colormap for event curves
-    cmap = plt.colormaps["viridis"].resampled(len(aligned_amps))
+    cmap = plt.colormaps["viridis"].resampled(len(all_amps))
 
-    for i, amps in enumerate(aligned_amps):
+    for i, (distances, amps) in enumerate(zip(all_distances, all_amps)):
         color = cmap(i)
         ax.plot(
-            amps, ref_channels,
+            amps, distances,
             color=color, linewidth=0.8, alpha=0.7,
             label=f"{labels[i]}",
         )
 
     # Median curve — bold dashed red line
     ax.plot(
-        median_amps, ref_channels,
+        median_amps, ref_distances,
         color="red", linewidth=2.0, linestyle="--",
         label="Median",
     )
@@ -160,7 +154,7 @@ def plot_overlay(
                label="Baseline (amp=1.0)")
 
     ax.set_xlabel("Normalized Amplitude")
-    ax.set_ylabel("Channel Index (0 = wellhead)")
+    ax.set_ylabel("Distance (m)")
     ax.set_title(title or "Teleseismic Amplification Overlay")
 
     # Invert y-axis so that wellhead is at the top
@@ -175,6 +169,22 @@ def plot_overlay(
     if save_dir is not None:
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
+
+        # CSV output (data for external GUI tools)
+        if csv_output:
+            csv_path = save_dir / "amplification_overlay.csv"
+            header = ["distance_m"] + labels + ["median"]
+            with open(csv_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                for idx, dist in enumerate(ref_distances):
+                    row = [f"{dist:.2f}"]
+                    for event_amps in interp_amps:
+                        row.append(f"{event_amps[idx]:.6f}")
+                    row.append(f"{median_amps[idx]:.6f}")
+                    writer.writerow(row)
+            logger.info("Overlay CSV saved to %s", csv_path)
+
         out_path = save_dir / "amplification_overlay.png"
         fig.savefig(str(out_path), dpi=dpi, bbox_inches="tight")
         logger.info("Overlay plot saved to %s", out_path)
