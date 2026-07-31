@@ -111,7 +111,11 @@ def plot_waterfall(
     )
 
     ax.set_xlabel("Time")
-    if "m" in str(coords.get_coord("distance").units):
+    coord = coords.get_coord("distance")
+    units_str = str(getattr(coord, 'units', '') or '')
+    if "m" in units_str \
+       or "m" in str(patch.attrs.get('distance_unit', '')) \
+       or (len(dist_vals) > 0 and np.max(dist_vals) > 10 and dist_vals.dtype.kind == 'f'):
         ax.set_ylabel("Distance (m)")
     else:
         ax.set_ylabel("Channel index")
