@@ -135,21 +135,54 @@ def _compute_channel_amplitudes(patch: dc.Patch) -> np.ndarray:
 def _compute_reference_amplitude(
     amplitudes: np.ndarray,
     n_reference: int,
+    distances: Optional[np.ndarray] = None,
+    distance_range: Optional[tuple[float, float]] = None,
 ) -> float:
-    """從最深 N 個 channel 計算基準振幅。
+    """從指定的基準 channel 計算基準振幅。
+
+    支援兩種指定方式：
+    1. 以距離範圍指定（水平光纖）：distance_range = (start_m, end_m)，
+       取 distance coord 落在該範圍內的 channel。
+    2. 以最深 N 個 channel 指定（豎井）：distance_range 為 None 時，
+       取最後 N 個（最深處）channel。
 
     Parameters
     ----------
     amplitudes : np.ndarray
         各通道振幅，由淺至深排列（index 0 = 井口/最淺）。
     n_reference : int
-        作為基準的最深 channel 數量。
+        作為基準的最深 channel 數量（distance_range 為 None 時使用）。
+    distances : np.ndarray, optional
+        每個 channel 的實際距離值（米），與 amplitudes 對齊。
+    distance_range : tuple[float, float], optional
+        基準距離範圍 (start_m, end_m)。若提供，則以該範圍內的 channel
+        作為基準；若範圍內無任何 channel，則 fallback 到最深 N 個 channel。
 
     Returns
     -------
     float
-        基準振幅（最深 N 個 channel 的中位數）。
+        基準振幅（基準 channel 的中位數）。
     """
+    if distance_range is not None and distances is not None:
+        d_min, d_max = distance_range
+        mask = (distances >= d_min) & (distances <= d_max)
+        ref_indices = np.flatnonzero(mask)
+
+        if ref_indices.size > 0:
+            ref_amplitudes = amplitudes[ref_indices]
+            reference = float(np.median(ref_amplitudes))
+            logger.info(
+                "基準振幅: %g (距離範圍 [%g, %g] m 內 %d 個 channel 的中位數)",
+                reference, d_min, d_max, ref_indices.size,
+            )
+            return reference
+
+        logger.warning(
+            "距離範圍 [%g, %g] m 內沒有任何 channel，"
+            "fallback 使用最深 %d 個 channel",
+            d_min, d_max, n_reference,
+        )
+
     if n_reference > len(amplitudes):
         logger.warning(
             "基準 channel 數量 (%d) 大於總 channel 數 (%d)，使用全部 channel",
@@ -195,7 +228,9 @@ def compute_amplification(
     1. 根據震央距離與群速度計算時間窗 [D/v_max, D/v_min]
     2. 擷取時間窗內的波列
     3. 對每個 channel 計算振幅（絕對值中位數）
-    4. 以最深 N 個 channel 的中位數作為基準
+    4. 以基準 channel 的中位數作為參考振幅：
+       - 若設定 ``reference_distance_range``，取距離落在該範圍內的 channel
+       - 否則以最深 N 個 channel（豎井場景）
     5. 計算放大倍率 = channel_amplitude / reference
 
     Parameters
@@ -241,7 +276,10 @@ def compute_amplification(
         distances = distances[skip:]
 
     reference = _compute_reference_amplitude(
-        amplitudes, config.reference_channels,
+        amplitudes,
+        config.reference_channels,
+        distances=distances,
+        distance_range=config.reference_distance_range,
     )
 
     amplification = amplitudes / reference if reference > 0 else np.ones_like(amplitudes)

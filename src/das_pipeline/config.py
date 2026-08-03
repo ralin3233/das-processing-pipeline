@@ -77,6 +77,7 @@ class TeleseismicConfig(BaseModel):
     event_distance_km: float
     event_origin_time: str          # ISO 格式，如 "2023-02-06T01:17:35"
     reference_channels: int = 10
+    reference_distance_range: Optional[tuple[float, float]] = None   # (start_m, end_m)，水平光纖用
     velocity_min: float = 2.0       # 最慢群速度 (km/s)
     velocity_max: float = 4.0       # 最快群速度 (km/s)
     skip_channels: int = 0          # 跳過前 N 個 channel（井口附近易受雜訊干擾）

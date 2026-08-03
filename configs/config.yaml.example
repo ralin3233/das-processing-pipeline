@@ -4,9 +4,9 @@ project_name: "das_convert_default"
 
 # ── 資料來源設定 ──────────────────────────
 data:
-  input_dir: "/mnt/d/ProgramingProject/sinoTech/NORSAR-NORFOX/NORFOX_ArmsCBA/20230202/proc"     # MiniSEED 檔案所在資料夾
-  format: "hdf5"                  # miniseed | hdf5
-  file_pattern: "*.hdf5"             # glob pattern，篩選要讀哪些檔
+  input_dir: "/mnt/d/ProgramingProject/sinoTech/Academia_Sinica-MiDAS/Events/Event_20230201104446_3600sec_M6"     # 檔案所在資料夾
+  format: "miniseed"               # miniseed | hdf5
+  file_pattern: "01*.mseed"             # glob pattern，篩選要讀哪些檔
   sampling_rate: null                  # Hz，如果 header 沒寫全可以在這裡指定
   time_range: null                    # 可選: ["2023-02-15T05:00:00", "2023-02-15T05:30:00"]
   chunk_duration: "10min"               # 每段處理多長時間
@@ -19,14 +19,17 @@ coordinate:
   interpolation: "linear"             # 座標插值方法: linear | nearest
   distance_unit: "m"                  # 座標檔案裡距離的單位
   strict_shape_check: true            # true: shape 對不上直接報錯
+  input_unit: "phase"           # 原始資料單位: "phase"（相位差）或 "strain_rate"（應變率）
+  phase_strain_constant: 11.6e-9      # 相位差→應變率常數（11.6×10⁻⁹），公式：ε̇ = constant × f × ΔΦ
+  missing_channel_strategy: "interpolate"  # channel 缺失處理: interpolate | crop | error
 
 # ── 前處理設定 ──────────────────────────
 preprocessing:
   time_range: null                      # 可選：限定時間範圍 ["2023-02-06T10:24:50", "2023-02-06T10:25:00"]
   distance_range: null                  # 可選：限定距離/通道範圍 [0, 500]
   detrend: "linear"                     # linear | constant | null（關閉）
-  bandpass: [0.03, 1.0]                # [low_cutoff, high_cutoff] Hz
-  decimate_factor: 4                    # 降採樣倍數，null 則跳過
+  bandpass: [0.01, 0.1]                # [low_cutoff, high_cutoff] Hz
+  decimate_factor: 100                    # 降採樣倍數，null 則跳過
 
 # ── 輸出設定 ──────────────────────────
 output:

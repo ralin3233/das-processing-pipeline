@@ -93,6 +93,13 @@ def amplification(
         bool,
         typer.Option("--csv", help="同時輸出各 channel 放大倍率至 CSV"),
     ] = False,
+    ref_distance_range: Annotated[
+        Optional[Tuple[float, float]],
+        typer.Option(
+            "--ref-distance-range",
+            help="基準距離範圍 (m)，水平光纖用。例: --ref-distance-range 500 600",
+        ),
+    ] = None,
     skip_channels: Annotated[
         int,
         typer.Option("--skip-channels", help="跳過前 N 個 channel（井口附近易受雜訊干擾）"),
@@ -119,6 +126,11 @@ def amplification(
         das-pipeline amplification data/processed/ \\
             --distance 3000 --origin-time "2023-02-06T01:17:35" \\
             --merge --pattern "*.h5" --save results/
+
+        # 水平光纖：以距離 500~600 米段落為基準
+        das-pipeline amplification data/processed/event1.h5 \\
+            --distance 3000 --origin-time "2023-02-06T01:17:35" \\
+            --ref-distance-range 500 600 --save results/
     """
     import logging
 
@@ -165,14 +177,19 @@ def amplification(
         event_distance_km=distance,
         event_origin_time=origin_time,
         reference_channels=ref_channels,
+        reference_distance_range=ref_distance_range,
         velocity_min=vmin,
         velocity_max=vmax,
         skip_channels=skip_channels,
     )
 
+    ref_info = (
+        f"ref_distance_range=[{ref_distance_range[0]}, {ref_distance_range[1]}] m"
+        if ref_distance_range else f"ref_channels={ref_channels}"
+    )
     typer.echo(
         f"遠震分析設定: D={distance} km, origin={origin_time}, "
-        f"v=[{vmin}, {vmax}] km/s, ref_channels={ref_channels}"
+        f"v=[{vmin}, {vmax}] km/s, {ref_info}"
         f"{', skip_channels=' + str(skip_channels) if skip_channels else ''}"
     )
 
