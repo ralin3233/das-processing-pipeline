@@ -14,7 +14,6 @@ class DataConfig(BaseModel):
     sampling_rate: Optional[int] = None
     time_range: Optional[tuple[str, str]] = None
     chunk_duration: np.timedelta64 = np.timedelta64(10, "m")
-    taper_ratio: float = 0.05
     filter_safety_samples: int = 0
 
     @field_validator("chunk_duration", mode="before")
@@ -32,7 +31,6 @@ class DataConfig(BaseModel):
 
 class CoordinateConfig(BaseModel):
     fiber_geometry_file: Path
-    interpolation: str = "linear"
     distance_unit: str = "m"
     strict_shape_check: bool = True
     input_unit: str = "strain_rate"
@@ -59,17 +57,27 @@ class CoordinateConfig(BaseModel):
 class OutputConfig(BaseModel):
     save_dir: Path
     filename_pattern: str = "{project_name}_{timestamp}_chunk{chunk_index:04d}.h5"
-    format: str = "dascore_h5"
     overwrite: bool = False
-    compression: Optional[str] = "gzip"
 
 
 class PreprocessingConfig(BaseModel):
     time_range: Optional[tuple[float, float]] = None
     distance_range: Optional[tuple[float, float]] = None
     detrend: Optional[str] = "linear"
+    taper_ratio: Optional[float] = None
     bandpass: Optional[tuple[float, float]] = None
     decimate_factor: Optional[int] = None
+
+    @field_validator("taper_ratio")
+    @classmethod
+    def _validate_taper_ratio(cls, value):
+        if value is None:
+            return value
+        if not (0 < value < 0.5):
+            raise ValueError(
+                f"taper_ratio 必須為 None 或滿足 0 < taper_ratio < 0.5，目前為 {value}"
+            )
+        return value
 
 
 class TeleseismicConfig(BaseModel):
@@ -85,7 +93,6 @@ class TeleseismicConfig(BaseModel):
 
 class RuntimeConfig(BaseModel):
     log_level: str = "INFO"
-    save_manifest: bool = True
 
 
 class ConvertConfig(BaseModel):

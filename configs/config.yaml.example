@@ -10,13 +10,11 @@ data:
   sampling_rate: null                  # Hz，如果 header 沒寫全可以在這裡指定
   time_range: null                    # 可選: ["2023-02-15T05:00:00", "2023-02-15T05:30:00"]
   chunk_duration: "10min"               # 每段處理多長時間
-  taper_ratio: 0.05                     # 濾波前 taper 比例，預設 0.05（頭尾各 5%）
   filter_safety_samples: 0              # 濾波器額外安全邊際（樣本數），0 表示不增加
 
 # ── 座標對齊設定 ──────────────────────────
 coordinate:
   fiber_geometry_file: "data/raw/geometry.csv"  # 光纖幾何座標檔 (channel -> lat/lon/depth)
-  interpolation: "linear"             # 座標插值方法: linear | nearest
   distance_unit: "m"                  # 座標檔案裡距離的單位
   strict_shape_check: true            # true: shape 對不上直接報錯
   input_unit: "phase"           # 原始資料單位: "phase"（相位差）或 "strain_rate"（應變率）
@@ -28,6 +26,7 @@ preprocessing:
   time_range: null                      # 可選：限定時間範圍 ["2023-02-06T10:24:50", "2023-02-06T10:25:00"]
   distance_range: null                  # 可選：限定距離/通道範圍 [0, 500]
   detrend: "linear"                     # linear | constant | null（關閉）
+  taper_ratio: 0.05                    # 濾波前 taper 比例（頭尾各 5%），null 則跳過
   bandpass: [0.01, 0.1]                # [low_cutoff, high_cutoff] Hz
   decimate_factor: 100                    # 降採樣倍數，null 則跳過
 
@@ -35,11 +34,8 @@ preprocessing:
 output:
   save_dir: "data/processed"
   filename_pattern: "{project_name}_{timestamp}_chunk{chunk_index:04d}.h5"
-  format: "dascore_h5"                # 對應 DASDAE .h5 格式
   overwrite: false                    # false: 檔案已存在就報錯
-  compression: "gzip"                 # h5 壓縮方式，可選 null 關閉
 
 # ── 執行期設定 ──────────────────────────
 runtime:
   log_level: "INFO"                   # DEBUG | INFO | WARNING
-  save_manifest: true                 # 是否把實際跑的 config + timestamp 存成記錄檔

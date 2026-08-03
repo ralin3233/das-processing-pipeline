@@ -7,6 +7,7 @@ import dascore as dc
 from das_pipeline.config import PreprocessingConfig
 from das_pipeline.preprocessing.select import select
 from das_pipeline.preprocessing.detrend import detrend
+from das_pipeline.preprocessing.taper import taper
 from das_pipeline.preprocessing.bandpass import bandpass
 from das_pipeline.preprocessing.decimate import decimate
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_preprocessing(patch: dc.Patch, config: PreprocessingConfig) -> dc.Patch:
-    """依序執行前處理各步驟：select → detrend → bandpass → decimate。
+    """依序執行前處理各步驟：select → detrend → taper → bandpass → decimate。
 
     Parameters
     ----------
@@ -34,10 +35,13 @@ def run_preprocessing(patch: dc.Patch, config: PreprocessingConfig) -> dc.Patch:
     # 2. 去趨勢
     patch = detrend(patch, method=config.detrend)
 
-    # 3. 帶通濾波
+    # 3. taper（減少濾波邊緣效應），None 則跳過
+    patch = taper(patch, taper_ratio=config.taper_ratio)
+
+    # 4. 帶通濾波
     patch = bandpass(patch, freq_range=config.bandpass)
 
-    # 4. 降採樣
+    # 5. 降採樣
     patch = decimate(patch, factor=config.decimate_factor)
 
     return patch

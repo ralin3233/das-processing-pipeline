@@ -9,6 +9,7 @@ from das_pipeline.config import PreprocessingConfig
 from das_pipeline.preprocessing import run_preprocessing
 from das_pipeline.preprocessing.select import select
 from das_pipeline.preprocessing.detrend import detrend
+from das_pipeline.preprocessing.taper import taper
 from das_pipeline.preprocessing.bandpass import bandpass
 from das_pipeline.preprocessing.decimate import decimate
 
@@ -107,6 +108,26 @@ class TestDetrend(unittest.TestCase):
         patch = _make_test_patch()
         with self.assertRaises(ValueError):
             detrend(patch, method="polynomial")
+
+
+class TestTaper(unittest.TestCase):
+    def test_taper_none_skips(self):
+        patch = _make_test_patch()
+        result = taper(patch, taper_ratio=None)
+        self.assertIs(result, patch)
+
+    def test_taper_valid_ratio(self):
+        """合法 taper_ratio 應維持 shape 且無 NaN。"""
+        patch = _make_test_patch(n_time=200)
+        result = taper(patch, taper_ratio=0.05)
+        self.assertEqual(np.asarray(result.data).shape, np.asarray(patch.data).shape)
+        self.assertFalse(np.isnan(np.asarray(result.data)).any())
+
+    def test_taper_invalid_ratio(self):
+        patch = _make_test_patch()
+        for invalid in (0.0, 0.5, -0.1, 1.0):
+            with self.assertRaises(ValueError):
+                taper(patch, taper_ratio=invalid)
 
 
 class TestBandpass(unittest.TestCase):

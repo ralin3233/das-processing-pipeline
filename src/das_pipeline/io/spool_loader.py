@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional, Tuple
 
 import dascore as dc
 import numpy as np
@@ -40,17 +40,25 @@ def get_spool(config: DataConfig) -> dc.BaseSpool:
     return spool
 
 
-def _compute_overlap_seconds(config: DataConfig) -> float:
+def _compute_overlap_seconds(
+    config: DataConfig, taper_ratio: Optional[float]
+) -> float:
     """根據 taper_ratio 和 filter_safety_samples 計算 chunk overlap (秒)。"""
     duration_sec = config.chunk_duration / np.timedelta64(1, "s")
-    overlap_sec = 2 * config.taper_ratio * duration_sec
+    overlap_sec = 2 * (taper_ratio or 0.0) * duration_sec
     if config.filter_safety_samples > 0 and config.sampling_rate is not None:
         safety_sec = config.filter_safety_samples / config.sampling_rate
         overlap_sec += safety_sec
     return overlap_sec
 
 
-def _compute_core_time_range(patch: dc.Patch, config: DataConfig, is_first: bool, is_last: bool) -> tuple:
+def _compute_core_time_range(
+    patch: dc.Patch,
+    config: DataConfig,
+    taper_ratio: Optional[float],
+    is_first: bool,
+    is_last: bool,
+) -> tuple:
     """計算當前 chunk 的核心時間範圍（排除 taper 區域）。
 
     此處的 margin 計算與 _compute_overlap_seconds 一致，
@@ -75,7 +83,7 @@ def _compute_core_time_range(patch: dc.Patch, config: DataConfig, is_first: bool
     t_max: np.datetime64 = time_coord.max()  # type: ignore[assignment]
 
     # 計算每邊 margin = overlap / 2
-    overlap_sec = _compute_overlap_seconds(config)
+    overlap_sec = _compute_overlap_seconds(config, taper_ratio)
     margin_sec = overlap_sec / 2.0
 
     # 將 margin 對齊取樣間隔（floor），確保相鄰 chunk 的 core 無縫銜接
@@ -98,13 +106,20 @@ def _compute_core_time_range(patch: dc.Patch, config: DataConfig, is_first: bool
     return (core_start, core_end)
 
 
-def iter_chunks(spool: dc.BaseSpool, config: DataConfig) -> Iterator[dc.Patch]:
+def iter_chunks(
+    spool: dc.BaseSpool,
+    config: DataConfig,
+    taper_ratio: Optional[float] = None,
+) -> Iterator[Tuple[int, dc.Patch]]:
     """把 spool 切成固定時間長度的片段，逐段 yield 出 Patch。
     每次迭代只有「這一段」的資料被實際讀進記憶體。
     每個 chunk 會在其 attrs 中儲存 core_time_start / core_time_end，
     供後續 merge_patches 裁切用。
+
+    taper_ratio 來自 preprocessing 設定，用於計算 overlap 與核心區間，
+    None 表示 taper 已停用，不產生 taper 相關的 overlap。
     """
-    overlap_sec = _compute_overlap_seconds(config)
+    overlap_sec = _compute_overlap_seconds(config, taper_ratio)
     chunked_spool = spool.chunk(
         time=config.chunk_duration,
         overlap=overlap_sec,
@@ -122,7 +137,11 @@ def iter_chunks(spool: dc.BaseSpool, config: DataConfig) -> Iterator[dc.Patch]:
         is_last = (i == total - 1)
 
         core_start, core_end = _compute_core_time_range(
-            patch, config, is_first=is_first, is_last=is_last,
+            patch,
+            config,
+            taper_ratio,
+            is_first=is_first,
+            is_last=is_last,
         )
 
         # 將核心範圍寫入 attrs 供 merge 裁切用
@@ -131,7 +150,7 @@ def iter_chunks(spool: dc.BaseSpool, config: DataConfig) -> Iterator[dc.Patch]:
         patch = patch.update_attrs(
             core_time_start=str(core_start),
             core_time_end=str(core_end),
-            taper_ratio=config.taper_ratio,
+            taper_ratio=taper_ratio,
             filter_safety_samples=config.filter_safety_samples,
             # 也存原始 chunk 邊界，便於除錯
             chunk_time_start=str(time_coord.min()),
@@ -143,4 +162,4 @@ def iter_chunks(spool: dc.BaseSpool, config: DataConfig) -> Iterator[dc.Patch]:
             f"chunk=[{time_coord.min()}, {time_coord.max()}], "
             f"core=[{core_start}, {core_end}]"
         )
-        yield i, patch # type: ignore[arg-type]
+        yield i, patch

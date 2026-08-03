@@ -214,7 +214,7 @@ das-pipeline overlay --help
 | `coordinate` | 光纖幾何座標對齊與單位轉換設定 |
 | `preprocessing` | 範圍裁切、detrend、bandpass、decimate |
 | `output` | 儲存路徑與輸出檔名 |
-| `runtime` | 日誌層級與 manifest 預留設定 |
+| `runtime` | 日誌層級設定 |
 
 ### `data`
 
@@ -234,7 +234,6 @@ das-pipeline overlay --help
 | 欄位 | 說明 |
 | --- | --- |
 | `fiber_geometry_file` | 光纖幾何座標檔（CSV），需包含欄位 `channel_index`、`lat`、`lon`、`depth` |
-| `interpolation` | 座標插值方法：`linear`（預設）或 `nearest` |
 | `distance_unit` | 座標檔案裡距離的單位，預設 `m` |
 | `strict_shape_check` | 對齊後是否檢查資料與座標 shape 一致，預設 `true` |
 | `input_unit` | 原始資料單位：`strain_rate`（預設）或 `phase`（相位差） |
@@ -268,9 +267,7 @@ das-pipeline overlay --help
 | --- | --- |
 | `save_dir` | 輸出目錄（必要） |
 | `filename_pattern` | 可使用 `{project_name}`、`{timestamp}`、`{chunk_index:04d}` |
-| `format` | 設定模型保留的欄位；目前寫出格式固定為 DASDAE HDF5 |
 | `overwrite` | 是否允許覆寫已存在檔案 |
-| `compression` | 設定模型保留的欄位；目前寫出器尚未將它傳給 DASCore |
 
 ## 專案結構
 
@@ -298,8 +295,8 @@ pytest tests/ -v
 
 ## 已知限制
 
-- `coordinate` 的插值方法（`interpolation`）、距離單位（`distance_unit`）設定已可在 YAML 驗證，但目前的座標對齊固定使用線性插值與米（m）。
-- `output.format` 與 `output.compression` 已可在 YAML 驗證，但尚未影響目前固定的 DASDAE 輸出寫入方式。
+- 座標對齊固定使用線性插值與米（m）。
+- 輸出格式固定為 DASDAE HDF5。
 - 目前未提供平行處理。
 
 ## License
