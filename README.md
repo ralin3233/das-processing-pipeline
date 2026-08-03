@@ -1,17 +1,18 @@
 # DAS Pipeline
 
-以 [DASCore](https://github.com/DASDAE/dascore) 為核心的 Distributed Acoustic Sensing（DAS，分散式光纖聲學感測）資料處理工具。它可將 MiniSEED 或既有 DASCore 相容資料切分為時間 chunk、套用前處理，並輸出 DASDAE HDF5（`.h5`）；也提供 Waterfall、F-K 與 Spectrogram 繪圖指令。
+以 [DASCore](https://github.com/DASDAE/dascore) 為核心的 Distributed Acoustic Sensing（DAS，分散式光纖聲學感測）資料處理工具。它可將 MiniSEED 或既有 DASCore 相容資料切分為時間 chunk、套用前處理與座標對齊，並輸出 DASDAE HDF5（`.h5`）；也提供遠震地層放大效應分析、多事件疊圖，以及 Waterfall、F-K 與 Spectrogram 繪圖指令。
 
 ## 功能
 
 - MiniSEED 讀取，以及由 DASCore 載入目錄中的相容格式（例如 HDF5）
 - 依時間分段處理；相鄰 chunk 可保留 overlap，降低濾波邊界效應
 - 前處理：時間／距離選取、去趨勢、帶通濾波、降採樣
+- 座標對齊：讀取光纖幾何座標檔，以 Haversine + 深度差計算沿光纖的累積 3D 距離，將 channel index 映射為實際距離（米）；支援相位差 → 應變率轉換
 - 輸出 DASDAE HDF5，並在 chunk 屬性中保存核心時間範圍，供後續合併
+- 遠震地層放大效應分析：依震央距離與表面波群速度計算時間窗，以井底最深 N 個 channel（或水平光纖指定距離範圍）為基準，計算各 channel 的放大倍率並繪圖
+- 多事件疊圖：將多個放大倍率 CSV 疊加顯示，並繪製中位數曲線
 - CLI 視覺化：Waterfall、F-K spectrum、Spectrogram，以及多個 chunk 的合併繪圖
 - YAML 設定檔與 Pydantic 驗證
-
-> 座標幾何對齊尚未實作。目前 `coordinate` 區塊仍為必要設定，但轉檔時會保留輸入 Patch 原有的 distance 座標。
 
 ## 安裝
 
@@ -51,11 +52,14 @@ data:
   chunk_duration: "10min"
 
 coordinate:
-  fiber_geometry_file: "data/raw/geometry.csv" # 目前僅為必要欄位，尚未套用
+  fiber_geometry_file: "data/raw/geometry.csv"
+  input_unit: "phase"        # "phase"（相位差）或 "strain_rate"（應變率）
 
 output:
   save_dir: "data/processed"
 ```
+
+> 若 `fiber_geometry_file` 指向的檔案不存在，會略過座標對齊並沿用原始 distance 軸（channel index）。若 `input_unit: "phase"`，會依 `phase_strain_constant` 與取樣頻率自動轉換為應變率。
 
 完整選項請參考 [configs/config.yaml.example](configs/config.yaml.example)。請勿直接使用範例中的絕對路徑。
 
@@ -73,7 +77,42 @@ data/processed/my_das_run_20260717T143000_chunk0000.h5
 
 若同名檔案已存在且 `output.overwrite: false`，流程會停止並回報錯誤，避免意外覆寫。
 
-### 3. 繪圖
+### 3. 遠震地層放大效應分析
+
+對已前處理的 `.h5` 檔案，根據震央距離與發震時刻計算雷利波列時間窗，分析各 channel 的放大倍率：
+
+```bash
+# 單一檔案分析（井底最深 10 個 channel 為基準）
+das-pipeline amplification data/processed/my_das_run_20260717T143000_chunk0000.h5 \
+  --distance 3000 --origin-time "2023-02-06T01:17:35" \
+  --save results/
+
+# 水平光纖：以距離 500~600 米段落為基準
+das-pipeline amplification data/processed/my_das_run_20260717T143000_chunk0000.h5 \
+  --distance 3000 --origin-time "2023-02-06T01:17:35" \
+  --ref-distance-range 500 600 --save results/
+
+# 多檔案合併後分析，並同時輸出 CSV
+das-pipeline amplification data/processed/ \
+  --distance 3000 --origin-time "2023-02-06T01:17:35" \
+  --merge --pattern "*.h5" --csv --save results/
+```
+
+`--csv` 會額外輸出 `teleseismic_amplification.csv`（各 channel 的距離、放大倍率與基準振幅），供後續疊圖使用。
+
+### 4. 多事件疊圖
+
+將多個 `amplification --csv` 輸出的 CSV 疊加顯示，並以紅色虛線繪製中位數曲線：
+
+```bash
+das-pipeline overlay results/ \
+  --pattern "*.csv" --labels "M6.5,M7.0,M7.2" \
+  --save results/ --title "Amplification Overlay"
+```
+
+`--labels` 以逗號分隔，用於圖例；未指定時使用檔名。
+
+### 5. 基本繪圖
 
 ```bash
 # 繪製單一檔案的 Waterfall
@@ -96,7 +135,9 @@ das-pipeline plot data/processed --merge --pattern "*.h5" \
 ```bash
 das-pipeline --help
 das-pipeline convert --help
+das-pipeline amplification --help
 das-pipeline plot --help
+das-pipeline overlay --help
 ```
 
 ### `convert`
@@ -104,6 +145,29 @@ das-pipeline plot --help
 | 參數 | 說明 |
 | --- | --- |
 | `--config`, `-c` | YAML 設定檔路徑（必要） |
+
+### `amplification`
+
+`path` 可為單一 `.h5` 檔或目錄。目錄模式會依 `--pattern` 收集檔案；只有加上 `--merge` 才會將多個檔案合併。
+
+| 參數 | 說明 |
+| --- | --- |
+| `--distance`, `-d` | 震央距離（km，必要） |
+| `--origin-time`, `-o` | 發震時刻，ISO 格式，例如 `2023-02-06T01:17:35`（必要） |
+| `--ref-channels` | 基準 channel 數（井底最深 N 個），預設 10 |
+| `--ref-distance-range` | 基準距離範圍（m），水平光纖用，例如 `--ref-distance-range 500 600` |
+| `--vmin` | 最慢群速度（km/s），預設 2.0 |
+| `--vmax` | 最快群速度（km/s），預設 4.0 |
+| `--skip-channels` | 跳過前 N 個 channel（井口附近易受雜訊干擾），預設 0 |
+| `--merge`, `-m` | 合併多個 chunk 後分析 |
+| `--pattern`, `-p` | 目錄模式的 glob，預設 `*.h5` |
+| `--sort-by` | 合併排序：`chunk_index`（預設）或 `timestamp` |
+| `--csv` | 同時輸出各 channel 放大倍率至 CSV |
+| `--event-label`, `-l` | 事件標籤（用於圖例） |
+| `--save`, `-s` | 輸出圖片／CSV 目錄；未指定時顯示互動式視窗 |
+| `--title`, `-t` | 圖表自訂標題 |
+| `--dpi` | 圖片解析度，預設 150 |
+| `--no-display` | 存檔模式下不彈出視窗 |
 
 ### `plot`
 
@@ -127,6 +191,18 @@ das-pipeline plot --help
 | `--title` | 自訂圖表標題 |
 | `--no-display` | 存檔後不顯示視窗 |
 
+### `overlay`
+
+| 參數 | 說明 |
+| --- | --- |
+| `--pattern`, `-p` | CSV 檔案 glob，預設 `*.csv` |
+| `--labels`, `-l` | 圖例標籤，逗號分隔（預設為檔名） |
+| `--save`, `-s` | 輸出圖片目錄 |
+| `--title`, `-t` | 圖表自訂標題 |
+| `--dpi` | 圖片解析度，預設 150 |
+| `--csv` | 同時輸出疊圖資料至 CSV（各事件 + 中位數） |
+| `--no-display` | 存檔模式下不彈出視窗 |
+
 ## 設定檔參考
 
 設定檔包含六個區塊：
@@ -135,7 +211,7 @@ das-pipeline plot --help
 | --- | --- |
 | `project_name` | 輸出檔名使用的專案名稱 |
 | `data` | 輸入資料、格式、時間篩選與 chunk 設定 |
-| `coordinate` | 未來的幾何對齊設定；目前不會改變資料座標 |
+| `coordinate` | 光纖幾何座標對齊與單位轉換設定 |
 | `preprocessing` | 範圍裁切、detrend、bandpass、decimate |
 | `output` | 儲存路徑與輸出檔名 |
 | `runtime` | 日誌層級與 manifest 預留設定 |
@@ -152,6 +228,27 @@ das-pipeline plot --help
 | `chunk_duration` | 每個 chunk 的時間，例如 `"10min"`、`"1h"` |
 | `taper_ratio` | 每個 chunk 用於 overlap 與濾波 taper 的比例，預設 `0.05` |
 | `filter_safety_samples` | 額外 overlap 樣本數；需同時設定 `sampling_rate` 才會生效 |
+
+### `coordinate`
+
+| 欄位 | 說明 |
+| --- | --- |
+| `fiber_geometry_file` | 光纖幾何座標檔（CSV），需包含欄位 `channel_index`、`lat`、`lon`、`depth` |
+| `interpolation` | 座標插值方法：`linear`（預設）或 `nearest` |
+| `distance_unit` | 座標檔案裡距離的單位，預設 `m` |
+| `strict_shape_check` | 對齊後是否檢查資料與座標 shape 一致，預設 `true` |
+| `input_unit` | 原始資料單位：`strain_rate`（預設）或 `phase`（相位差） |
+| `phase_strain_constant` | 相位差 → 應變率常數，預設 `11.6e-9`；公式 `ε̇ = constant × f × ΔΦ` |
+| `missing_channel_strategy` | channel 缺失處理：`interpolate`（預設）、`crop` 或 `error` |
+
+座標對齊流程：
+
+1. 讀取 geometry.csv，以 `channel_index` 排序
+2. 用 Haversine 公式計算相鄰 channel 的水平距離，結合深度差得到 3D 段長，累積為每個 channel 的實際距離（米）
+3. 將 Patch 的 distance 座標由 channel index 替換為實際累積距離；缺失 channel 依 `missing_channel_strategy` 處理
+4. 若 `input_unit: "phase"`，將資料轉換為應變率
+
+若 geometry.csv 不存在，會略過座標對齊，沿用原始 channel index 距離軸。
 
 ### `preprocessing`
 
@@ -180,12 +277,15 @@ das-pipeline plot --help
 ```text
 ├── configs/config.yaml.example  # 設定檔範例
 ├── src/das_pipeline/
-│   ├── cli.py                   # convert / plot 指令
+│   ├── cli.py                   # convert / amplification / plot / overlay 指令
 │   ├── config.py                # Pydantic 設定模型
 │   ├── pipeline.py              # 轉檔流程
-│   ├── io/                      # 載入、分段、輸出與座標處理
+│   ├── io/                      # 載入、分段、輸出與座標對齊
 │   ├── preprocessing/           # 前處理步驟
-│   └── visualization/           # 圖表與 chunk 合併
+│   ├── teleseismic/             # 遠震地層放大效應分析
+│   ├── overlay/                 # 多事件放大倍率疊圖
+│   ├── visualization/           # 圖表與 chunk 合併
+│   └── utils/                   # 共用工具（日誌設定等）
 ├── tests/
 └── pyproject.toml
 ```
@@ -198,7 +298,7 @@ pytest tests/ -v
 
 ## 已知限制
 
-- `coordinate` 的幾何檔案、插值與 shape 檢查尚未套用。
+- `coordinate` 的插值方法（`interpolation`）、距離單位（`distance_unit`）設定已可在 YAML 驗證，但目前的座標對齊固定使用線性插值與米（m）。
 - `output.format` 與 `output.compression` 已可在 YAML 驗證，但尚未影響目前固定的 DASDAE 輸出寫入方式。
 - 目前未提供平行處理。
 
