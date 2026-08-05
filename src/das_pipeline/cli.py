@@ -139,7 +139,6 @@ def amplification(
     if no_display:
         matplotlib.use("Agg")
 
-    import matplotlib.pyplot as plt
     import dascore as dc
 
     from das_pipeline.config import TeleseismicConfig

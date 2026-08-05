@@ -4,7 +4,6 @@ import logging
 import re
 from pathlib import Path
 from typing import List, Optional
-import pandas as pd
 import dascore as dc
 import numpy as np
 
@@ -36,7 +35,7 @@ def _crop_to_core(patch: dc.Patch) -> dc.Patch:
     core_end_str = patch.attrs.get("core_time_end")
 
     if not core_start_str or not core_end_str:
-        logger.debug(f"patch 缺少 core_time attrs，跳過裁切")
+        logger.debug("patch 缺少 core_time attrs，跳過裁切")
         return patch
 
     try:

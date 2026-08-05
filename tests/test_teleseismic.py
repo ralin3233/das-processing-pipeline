@@ -180,7 +180,7 @@ class TestComputeAmplification:
             velocity_max=4.0,
         )
         result = compute_amplification(patch, config)
-        assert result is not None, f"result is None, patch time range might not cover the window"
+        assert result is not None, "result is None, patch time range might not cover the window"
         assert "amplification" in result
         assert "distances" in result
         assert "reference_amplitude" in result

@@ -255,7 +255,7 @@ def _convert_phase_to_strain_rate(
     new_data = patch.data * scale_factor
 
     patch = patch.update_attrs(
-        input_unit="phase",
+        input_unit="strain_rate",
         phase_strain_constant=config.phase_strain_constant,
         sampling_rate_hz=sampling_rate,
         scale_factor=scale_factor,

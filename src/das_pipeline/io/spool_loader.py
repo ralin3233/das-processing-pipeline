@@ -19,7 +19,7 @@ def get_spool(config: DataConfig) -> dc.BaseSpool:
     if config.format.lower() == "miniseed":
         patch = load_miniseed(config)
         spool = dc.spool(patch)
-        logger.info(f"已讀入 miniSEED 資料，建立 1 個 Patch 的 spool")
+        logger.info("已讀入 miniSEED 資料，建立 1 個 Patch 的 spool")
     else:
         input_dir = Path(config.input_dir)
 
@@ -107,6 +107,7 @@ def _compute_core_time_range(
 
 
 def iter_chunks(
+    
     spool: dc.BaseSpool,
     config: DataConfig,
     taper_ratio: Optional[float] = None,

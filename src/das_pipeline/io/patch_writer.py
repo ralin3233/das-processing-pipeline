@@ -2,7 +2,6 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-import dascore as dc
 
 from das_pipeline.config import OutputConfig
 
