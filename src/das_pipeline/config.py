@@ -91,6 +91,34 @@ class TeleseismicConfig(BaseModel):
     skip_channels: int = 0          # 跳過前 N 個 channel（井口附近易受雜訊干擾）
 
 
+class StaLtaConfig(BaseModel):
+    """STA/LTA 觸發檢測設定，所有參數皆可透過 CLI 設定。"""
+    sta_window_s: float = 0.5          # STA 短窗長度 (秒)
+    lta_window_s: float = 10.0         # LTA 長窗長度 (秒)
+    trigger_threshold: float = 3.0     # STA/LTA ratio 觸發閾值
+    detrigger_threshold: float = 1.5   # STA/LTA ratio 解除觸發閾值
+    min_channels_triggered: int = 3    # 最少同時觸發通道數（空間一致性）
+    min_event_duration_s: float = 0.1  # 最短事件持續時間 (秒)
+    merge_window_s: float = 0.0        # 合併相鄰事件閾值 (秒)，0=不合併
+
+    @field_validator("sta_window_s", "lta_window_s")
+    @classmethod
+    def _validate_positive_window(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError(f"window 必須 > 0，目前 {v}")
+        return v
+
+    @field_validator("detrigger_threshold")
+    @classmethod
+    def _validate_detrigger_lt_trigger(cls, v: float, info) -> float:
+        trigger = info.data.get("trigger_threshold")
+        if trigger is not None and v >= trigger:
+            raise ValueError(
+                f"detrigger_threshold ({v}) 必須 < trigger_threshold ({trigger})"
+            )
+        return v
+
+
 class RuntimeConfig(BaseModel):
     log_level: str = "INFO"
 
