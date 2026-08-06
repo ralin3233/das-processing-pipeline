@@ -77,6 +77,13 @@ def plot_spectrogram(
 
     ts = data[:, channel]
 
+    # ── NaN sanitization: STFT doesn't handle NaN ──
+    ts = np.asarray(ts)
+    if np.isnan(ts).any():
+        nan_pct = np.mean(np.isnan(ts)) * 100
+        logger.warning("Spectrogram: %.1f%% NaN in channel %d, replaced with 0.", nan_pct, channel)
+        ts = np.nan_to_num(ts, nan=0.0)
+
     # dt (秒)
     dt = float((time_coord[1] - time_coord[0]) / np.timedelta64(1, "s"))
     if not np.isfinite(dt) or dt <= 0:

@@ -247,7 +247,7 @@ class TestAlignWithInterpolate(unittest.TestCase):
             # 數據應已被縮放（scale > 1）
             self.assertTrue(np.any(result.data != patch.data))
             # attrs 應記錄轉換參數
-            self.assertEqual(result.attrs.get("input_unit"), "phase")
+            self.assertEqual(result.attrs.get("input_unit"), "strain_rate")
 
 
 class TestAlignWithCrop(unittest.TestCase):

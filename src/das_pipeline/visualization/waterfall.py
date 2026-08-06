@@ -81,13 +81,13 @@ def plot_waterfall(
             data = data[:, mask]
         dist_vals = dist_vals[mask]
 
-    # 自動 vmin/vmax
+    # 自動 vmin/vmax (use nanpercentile so bad channels don't silently break clipping)
     if vmin is None or vmax is None:
         abs_data = np.abs(data)
         if vmin is None:
-            vmin = -float(np.percentile(abs_data, clip_percentile))
+            vmin = -float(np.nanpercentile(abs_data, clip_percentile))
         if vmax is None:
-            vmax = float(np.percentile(abs_data, clip_percentile))
+            vmax = float(np.nanpercentile(abs_data, clip_percentile))
 
     # 確保 data 為 (time, distance) 順序
     if patch.dims.index("time") != 0:

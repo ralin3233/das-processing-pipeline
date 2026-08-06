@@ -1,12 +1,76 @@
 # src/das_pipeline/cli.py
 
+import json
 from pathlib import Path
 from typing import List, Optional, Tuple
+
 import numpy as np
 import typer
 from typing_extensions import Annotated
 
 app = typer.Typer(help="DAS Processing Pipeline CLI")
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_bad_channel_indices(patch) -> list[int]:
+    """Read ``all_nan_channel_indices`` from patch attrs (comma-separated)."""
+    raw = patch.attrs.get("all_nan_channel_indices")
+    if raw is None or str(raw).strip() == "":
+        return []
+    try:
+        return [int(x.strip()) for x in str(raw).split(",") if x.strip()]
+    except (ValueError, TypeError):
+        return []
+
+
+def _exclude_bad_channels_from_patch(patch, bad_indices: list[int]):
+    """Physically remove entirely-NaN channels from a patch.
+
+    Returns (cleaned_patch, n_excluded, local_to_original).
+    ``local_to_original`` maps compressed channel index back to the
+    original channel number.
+    """
+    import dascore as dc
+
+    n_orig = patch.shape[0] if "distance" in patch.dims else patch.shape[1]
+    local_to_original = list(range(n_orig))
+
+    if not bad_indices:
+        return patch, 0, local_to_original
+
+    data = np.asarray(patch.data)
+    dims = patch.dims
+    channel_axis = dims.index("distance") if "distance" in dims else 0
+
+    keep_mask = np.ones(data.shape[channel_axis], dtype=bool)
+    global_bad = np.array(bad_indices, dtype=int)
+    global_bad = global_bad[(global_bad >= 0) & (global_bad < len(keep_mask))]
+    keep_mask[global_bad] = False
+    n_excluded = (~keep_mask).sum()
+
+    if n_excluded == 0:
+        return patch, 0, local_to_original
+
+    if channel_axis == 0:
+        data = data[keep_mask, :]
+        dist_coord = patch.coords.get_array("distance")[keep_mask]
+    else:
+        data = data[:, keep_mask]
+        dist_coord = patch.coords.get_array("distance")[keep_mask]
+
+    local_to_original = [i for i in range(len(keep_mask)) if keep_mask[i]]
+
+    new_patch = dc.Patch(
+        data=data,
+        coords={"time": patch.coords.get_array("time"), "distance": dist_coord},
+        dims=dims,
+        attrs=patch.attrs,
+    )
+    return new_patch, n_excluded, local_to_original
 
 
 @app.callback()
@@ -330,6 +394,20 @@ def detect(
         f"min_channels={min_channels}, min_duration={min_duration}s"
     )
 
+    # --- 排除不可用 channel（全 NaN，由 nan_handler 標記）---
+    local_to_orig: list[int] = []
+    bad_indices = _get_bad_channel_indices(patch)
+    if bad_indices:
+        n_before = patch.shape[0] if "distance" in patch.dims else patch.shape[1]
+        typer.echo(
+            f"⚠️  此檔案有 {len(bad_indices)} 個 channel 完全無資料"
+            f"（index: {bad_indices}），將不參與 STA/LTA 檢測。"
+        )
+        patch, n_excluded, local_to_orig = _exclude_bad_channels_from_patch(patch, bad_indices)
+        typer.echo(f"    排除後剩餘 channel 數: {n_before - n_excluded}")
+    else:
+        local_to_orig = list(range(patch.shape[0] if "distance" in patch.dims else patch.shape[1]))
+
     # --- STA/LTA via DASCore ---
     sta_lta_patch = compute_sta_lta_patch(patch, config)
     typer.echo(f"STA/LTA ratio shape: {sta_lta_patch.shape}")
@@ -350,23 +428,24 @@ def detect(
             f"channels={evt['num_triggered_channels']}"
         )
 
-    # --- 輸出 ---
+    # --- 輸出 (map local channel indices back to original) ---
     if save is not None:
         save_dir = Path(save)
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        export = [
-            {
+        export = []
+        for e in events:
+            local_chs = e["triggered_channels"]
+            orig_chs = [local_to_orig[ch] for ch in local_chs if ch < len(local_to_orig)]
+            export.append({
                 "start_time": e["start_time"],
                 "end_time": e["end_time"],
                 "peak_time": e["peak_time"],
                 "peak_ratio": e["peak_ratio"],
-                "triggered_channels": e["triggered_channels"],
-                "num_triggered_channels": e["num_triggered_channels"],
+                "triggered_channels": orig_chs,
+                "num_triggered_channels": len(orig_chs),
                 "duration_s": e["duration_s"],
-            }
-            for e in events
-        ]
+            })
 
         write_json = format in ("json", "all")
         write_csv = format in ("csv", "all")
@@ -522,6 +601,18 @@ def plot(
         f"time: {time_values.min()} ~ {time_values.max()}"
     )
 
+    # --- 排除不可用 channel（全 NaN，由 nan_handler 標記）---
+    # Waterfall 保留 NaN 標示無訊號區；FK/spectrogram 需排除避免 NaN 污染 FFT/STFT。
+    bad_indices = _get_bad_channel_indices(patch)
+    if bad_indices:
+        typer.echo(
+            f"⚠️  此檔案有 {len(bad_indices)} 個 channel 完全無資料"
+            f"（index: {bad_indices}），FK/spectrogram 將排除這些 channel。"
+        )
+        patch_clean, _n_ex, _l2o = _exclude_bad_channels_from_patch(patch, bad_indices)
+    else:
+        patch_clean = patch
+
     # --- 繪圖 ---
     type_set = {t.lower() for t in type}
     fig_axes = []
@@ -530,7 +621,7 @@ def plot(
         fig, ax = plt.subplots(figsize=(12, 5))
         try:
             fig = plot_waterfall(
-                patch, ax=ax,
+                patch, ax=ax,  # waterfall keeps original patch (NaN = no signal)
                 time_range=time_range,
                 distance_range=distance_range,
                 colormap=colormap,
@@ -547,7 +638,7 @@ def plot(
         fig, ax = plt.subplots(figsize=(8, 6))
         try:
             fig = plot_fk_spectrum(
-                patch, ax=ax,
+                patch_clean, ax=ax,  # use cleaned patch (bad channels removed)
                 channel_spacing=channel_spacing,
                 freq_range=freq_range,
                 colormap=_cmap,

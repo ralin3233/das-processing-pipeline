@@ -1,5 +1,6 @@
 # src/das_pipeline/teleseismic/amplification.py
 
+import json
 import logging
 from typing import Optional
 
@@ -114,6 +115,9 @@ def _compute_channel_amplitudes(patch: dc.Patch) -> np.ndarray:
     不假設資料維度順序，因此同時支援 ``("distance", "time")`` 與
     ``("time", "distance")`` 的 Patch。
 
+    使用 ``np.nanmedian``：即使 pipeline 上游已清除 NaN，
+    仍以 nan-aware 方式計算，避免單一殘留 NaN 拖垮整條 channel。
+
     Parameters
     ----------
     patch : dc.Patch
@@ -124,10 +128,23 @@ def _compute_channel_amplitudes(patch: dc.Patch) -> np.ndarray:
     np.ndarray
         每個 channel 的振幅中位數，shape = (n_channels,)。
     """
+    import warnings
+
     data = np.asarray(patch.data)
     time_axis = patch.dims.index("time")
-    # 沿實際的 time 軸取 median，得到每個 channel 一個值。
-    amplitudes = np.median(np.abs(data), axis=time_axis)
+    # 沿實際的 time 軸取 nanmedian，得到每個 channel 一個值。
+    with np.errstate(invalid="ignore"), warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="All-NaN slice encountered")
+        amplitudes = np.nanmedian(np.abs(data), axis=time_axis)
+
+    bad_channels = np.flatnonzero(np.isnan(amplitudes))
+    if bad_channels.size > 0:
+        logger.warning(
+            "有 %d 個 channel 在此時間窗內完全沒有有效資料（全 NaN），"
+            "channel index: %s，這些 channel 的放大倍率將為 NaN。",
+            bad_channels.size, bad_channels.tolist(),
+        )
+
     logger.info("通道振幅計算完成，shape: %s", amplitudes.shape)
     return amplitudes
 
@@ -163,6 +180,8 @@ def _compute_reference_amplitude(
     float
         基準振幅（基準 channel 的中位數）。
     """
+    import warnings
+
     if distance_range is not None and distances is not None:
         d_min, d_max = distance_range
         mask = (distances >= d_min) & (distances <= d_max)
@@ -170,12 +189,31 @@ def _compute_reference_amplitude(
 
         if ref_indices.size > 0:
             ref_amplitudes = amplitudes[ref_indices]
-            reference = float(np.median(ref_amplitudes))
-            logger.info(
-                "基準振幅: %g (距離範圍 [%g, %g] m 內 %d 個 channel 的中位數)",
-                reference, d_min, d_max, ref_indices.size,
-            )
-            return reference
+            n_valid = np.sum(~np.isnan(ref_amplitudes))
+            if n_valid == 0:
+                logger.error(
+                    "距離範圍 [%g, %g] m 內的 %d 個基準 channel 全部為 NaN"
+                    "（可能整批斷訊/感測器異常），無法計算基準振幅，"
+                    "fallback 使用最深 %d 個 channel",
+                    d_min, d_max, ref_indices.size, n_reference,
+                )
+            else:
+                with np.errstate(invalid="ignore"), warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message="All-NaN slice encountered")
+                    reference = float(np.nanmedian(ref_amplitudes))
+                if n_valid < ref_amplitudes.size:
+                    logger.warning(
+                        "距離範圍 [%g, %g] m 內 %d 個基準 channel 中有 %d 個是 NaN，"
+                        "已自動排除，僅用剩餘 %d 個 channel 計算基準振幅: %g",
+                        d_min, d_max, ref_amplitudes.size,
+                        ref_amplitudes.size - n_valid, n_valid, reference,
+                    )
+                else:
+                    logger.info(
+                        "基準振幅: %g (距離範圍 [%g, %g] m 內 %d 個 channel 的中位數)",
+                        reference, d_min, d_max, ref_indices.size,
+                    )
+                return reference
 
         logger.warning(
             "距離範圍 [%g, %g] m 內沒有任何 channel，"
@@ -192,10 +230,26 @@ def _compute_reference_amplitude(
 
     # 取最後 N 個 channel（最深處）
     ref_amplitudes = amplitudes[-n_reference:]
-    reference = float(np.median(ref_amplitudes))
-    logger.info(
-        "基準振幅: %g (最深 %d 個 channel 的中位數)", reference, n_reference,
-    )
+    n_valid = np.sum(~np.isnan(ref_amplitudes))
+    if n_valid == 0:
+        raise ValueError(
+            f"用來當基準的最深 {n_reference} 個 channel 全部為 NaN"
+            "（可能整批斷訊/感測器異常），無法計算基準振幅。"
+            "請檢查資料品質，或調整 reference_channels / skip_channels。"
+        )
+    with np.errstate(invalid="ignore"), warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="All-NaN slice encountered")
+        reference = float(np.nanmedian(ref_amplitudes))
+    if n_valid < ref_amplitudes.size:
+        logger.warning(
+            "最深 %d 個基準 channel 中有 %d 個是 NaN，已自動排除，"
+            "僅用剩餘 %d 個 channel 計算基準振幅: %g",
+            n_reference, ref_amplitudes.size - n_valid, n_valid, reference,
+        )
+    else:
+        logger.info(
+            "基準振幅: %g (最深 %d 個 channel 的中位數)", reference, n_reference,
+        )
     return reference
 
 
@@ -269,6 +323,28 @@ def compute_amplification(
     amplitudes = _compute_channel_amplitudes(wave_patch)
     distances = _extract_distances(wave_patch)
 
+    # ── Exclude channels flagged as entirely NaN by nan_handler ──
+    bad_indices_str = patch.attrs.get("all_nan_channel_indices")
+    n_excluded = 0
+    if bad_indices_str is not None and str(bad_indices_str).strip():
+        try:
+            bad_indices = [int(x.strip()) for x in str(bad_indices_str).split(",") if x.strip()]
+        except (ValueError, TypeError):
+            bad_indices = []
+        if bad_indices:
+            keep_mask = np.ones(len(amplitudes), dtype=bool)
+            global_bad = np.array(bad_indices, dtype=int)
+            global_bad = global_bad[(global_bad >= 0) & (global_bad < len(amplitudes))]
+            keep_mask[global_bad] = False
+            n_excluded = (~keep_mask).sum()
+            if n_excluded > 0:
+                logger.warning(
+                    "排除 %d 個不可用 channel（全 NaN），index: %s",
+                    n_excluded, global_bad.tolist(),
+                )
+            amplitudes = amplitudes[keep_mask]
+            distances = distances[keep_mask]
+
     skip = config.skip_channels
     if skip > 0:
         logger.info("跳過前 %d 個（井口附近）channel，不參與放大倍率計算", skip)
@@ -282,7 +358,14 @@ def compute_amplification(
         distance_range=config.reference_distance_range,
     )
 
-    amplification = amplitudes / reference if reference > 0 else np.ones_like(amplitudes)
+    if reference > 0:
+        amplification = amplitudes / reference
+    else:
+        logger.warning(
+            "基準振幅為 0（%g），放大倍率無法計算，全部 channel 暫以 1.0 表示，"
+            "請檢查資料是否異常。", reference,
+        )
+        amplification = np.ones_like(amplitudes)
 
     n_channels = len(amplification)
     logger.info(
@@ -296,6 +379,7 @@ def compute_amplification(
         "amplification": amplification,
         "reference_amplitude": reference,
         "n_channels": n_channels,
+        "n_excluded_bad_channels": n_excluded,
         "time_window": (str(t_start), str(t_end)),
         "event_distance_km": config.event_distance_km,
         "distance_unit": patch.attrs.get("distance_unit", "m"),

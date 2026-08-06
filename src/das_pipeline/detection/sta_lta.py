@@ -59,6 +59,17 @@ def compute_sta_lta_patch(
 
     sta_lta_patch = abs_patch.stalta(time=(config.sta_window_s, config.lta_window_s))
 
+    # Check for NaN contamination after STA/LTA computation
+    data = np.asarray(sta_lta_patch.data)
+    nan_frac = np.mean(np.isnan(data))
+    if nan_frac > 0.5:
+        logger.warning(
+            "STA/LTA ratio 中有 %.1f%% NaN（>50%%），"
+            "資料可能因斷訊導致濾波擴散，檢測結果可能不可靠。", nan_frac * 100,
+        )
+    elif nan_frac > 0.0:
+        logger.info("STA/LTA ratio 中有 %.1f%% NaN。", nan_frac * 100)
+
     logger.info(
         "DASCore STA/LTA: sta=%gs, lta=%gs, output shape=%s",
         config.sta_window_s,
@@ -155,8 +166,10 @@ def detect_events(
     min_dur_samp = max(1, int(round(config.min_event_duration_s * sampling_rate)))
 
     # Per-time-step triggered channels
-    triggered_mask = data > config.trigger_threshold  # (n_channels, n_valid)
-    detriggered_mask = data < config.detrigger_threshold
+    # Exclude NaN explicitly: NaN > threshold = False, but make intent clear.
+    finite_data = np.isfinite(data)
+    triggered_mask = (data > config.trigger_threshold) & finite_data  # (n_channels, n_valid)
+    detriggered_mask = (data < config.detrigger_threshold) & finite_data
     triggered_count = np.sum(triggered_mask, axis=0)  # (n_valid,)
 
     events: list[dict] = []
