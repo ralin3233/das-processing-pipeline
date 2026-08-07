@@ -6,6 +6,14 @@ from pathlib import Path
 from typing import List, Optional
 import dascore as dc
 import numpy as np
+import pandas as pd
+
+def _to_naive_utc_datetime64(ts_str: str) -> np.datetime64:
+    """將時間字串（可能含 tz）統一轉為 tz-naive UTC 的 np.datetime64。"""
+    ts = pd.Timestamp(ts_str)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return np.datetime64(ts)
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +47,8 @@ def _crop_to_core(patch: dc.Patch) -> dc.Patch:
         return patch
 
     try:
-        core_start = np.datetime64(core_start_str)
-        core_end = np.datetime64(core_end_str)
+        core_start = _to_naive_utc_datetime64(core_start_str)
+        core_end = _to_naive_utc_datetime64(core_end_str)
     except Exception:
         logger.warning(f"無法解析 core_time attrs: {core_start_str}, {core_end_str}，跳過裁切")
         return patch
