@@ -21,7 +21,7 @@ def run_convert(config: ConvertConfig):
         patch, nan_stats = sanitize_nan_patch(patch)
         if nan_stats["n_all_nan_channels"] > 0:
             logger.warning(
-                "Chunk %d: %d channel(s) entirely NaN, filled with 0.",
+                "Chunk %d: %d channel(s) entirely NaN, kept as NaN and flagged in attrs.",
                 chunk_index,
                 nan_stats["n_all_nan_channels"],
             )

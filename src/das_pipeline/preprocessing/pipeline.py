@@ -20,7 +20,8 @@ def run_preprocessing(patch: dc.Patch, config: PreprocessingConfig) -> dc.Patch:
     Parameters
     ----------
     patch : dc.Patch
-        輸入的 Patch。
+        輸入的 Patch。強烈建議先透過 ``sanitize_nan_patch`` 清除 NaN，
+        否則 IIR/FIR 濾波會將單一 NaN 擴散到整個時間序列。
     config : PreprocessingConfig
         前處理設定。
 
@@ -29,6 +30,28 @@ def run_preprocessing(patch: dc.Patch, config: PreprocessingConfig) -> dc.Patch:
     dc.Patch
         處理後的 Patch。
     """
+    import numpy as np
+
+    # ── NaN 防禦檢查 ──
+    data_arr = np.asarray(patch.data)
+    nan_mask = np.isnan(data_arr)
+    if nan_mask.any():
+        was_sanitized = patch.attrs.get("nan_sanitized")
+        nan_pct = nan_mask.sum() / data_arr.size * 100
+        if was_sanitized:
+            logger.info(
+                "Patch 內仍有 %.2f%% NaN（nan_sanitized=True），"
+                "這些應為全 NaN channel 被保留的標記。",
+                nan_pct,
+            )
+        else:
+            logger.warning(
+                "⚠️  Patch 內有 %.2f%% NaN 但未經過 sanitize_nan_patch 處理！"
+                "  IIR/FIR 濾波會將 NaN 擴散至整個時間序列，"
+                " 建議在 run_preprocessing 之前先呼叫 sanitize_nan_patch。",
+                nan_pct,
+            )
+
     # 1. 選取時間/距離範圍
     patch = select(patch, time_range=config.time_range, distance_range=config.distance_range)
 

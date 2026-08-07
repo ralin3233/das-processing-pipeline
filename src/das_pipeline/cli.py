@@ -214,6 +214,8 @@ def amplification(
     # --- 收集檔案 ---
     if path.is_dir():
         file_paths = sorted(path.glob(pattern))
+        # 排除隱藏檔案（如 .dascore_index.h5）
+        file_paths = [p for p in file_paths if not p.name.startswith(".")]
         if not file_paths:
             typer.echo(f"❌ 在 {path} 找不到符合 {pattern} 的檔案")
             raise typer.Exit(1)
@@ -580,6 +582,8 @@ def plot(
     # --- 收集檔案 ---
     if path.is_dir():
         file_paths = sorted(path.glob(pattern))
+        # 排除隱藏檔案（如 .dascore_index.h5）
+        file_paths = [p for p in file_paths if not p.name.startswith(".")]
         if not file_paths:
             typer.echo(f"❌ 在 {path} 找不到符合 {pattern} 的檔案")
             raise typer.Exit(1)
@@ -602,12 +606,13 @@ def plot(
     )
 
     # --- 排除不可用 channel（全 NaN，由 nan_handler 標記）---
-    # Waterfall 保留 NaN 標示無訊號區；FK/spectrogram 需排除避免 NaN 污染 FFT/STFT。
+    # Waterfall 保留 NaN 標示無訊號區；spectrogram 排除避免 NaN 污染 STFT；
+    # FK 交由 plot_fk_spectrum 內部自行對 NaN channel 線性內插補值。
     bad_indices = _get_bad_channel_indices(patch)
     if bad_indices:
         typer.echo(
             f"⚠️  此檔案有 {len(bad_indices)} 個 channel 完全無資料"
-            f"（index: {bad_indices}），FK/spectrogram 將排除這些 channel。"
+            f"（index: {bad_indices}），spectrogram 將排除這些 channel。"
         )
         patch_clean, _n_ex, _l2o = _exclude_bad_channels_from_patch(patch, bad_indices)
     else:
@@ -638,7 +643,7 @@ def plot(
         fig, ax = plt.subplots(figsize=(8, 6))
         try:
             fig = plot_fk_spectrum(
-                patch_clean, ax=ax,  # use cleaned patch (bad channels removed)
+                patch, ax=ax,  # NaN channels interpolated internally (FFT needs clean data)
                 channel_spacing=channel_spacing,
                 freq_range=freq_range,
                 colormap=_cmap,
@@ -654,8 +659,10 @@ def plot(
         _cmap = colormap if colormap != "seismic" else "viridis"
         fig, ax = plt.subplots(figsize=(10, 5))
         try:
+            # Use patch_clean (bad channels excluded) so NaN channels don't
+            # leak into STFT and produce a blank spectrogram.
             fig = plot_spectrogram(
-                patch, ax=ax,
+                patch_clean, ax=ax,
                 channel=channel,
                 freq_range=freq_range,
                 colormap=_cmap,

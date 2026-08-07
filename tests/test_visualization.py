@@ -12,7 +12,7 @@ import numpy as np
 import dascore as dc
 
 from das_pipeline.visualization.waterfall import plot_waterfall
-from das_pipeline.visualization.fk import plot_fk_spectrum, _get_spatial_axis
+from das_pipeline.visualization.fk import plot_fk_spectrum
 from das_pipeline.visualization.spectrogram import plot_spectrogram
 from das_pipeline.visualization.merge import (
     merge_patches,
@@ -336,28 +336,6 @@ class TestPlotWaterfall(unittest.TestCase):
 # plot_fk_spectrum
 # ---------------------------------------------------------------------------
 
-class TestFkHelpers(unittest.TestCase):
-    def test_get_spatial_axis_with_spacing(self):
-        test_patch = _make_test_patch(n_distance=10, distance_step=10.0)
-        dist_vals, label = _get_spatial_axis(test_patch, channel_spacing=5.0)
-        self.assertEqual(len(dist_vals), 10)
-        self.assertEqual(dist_vals[1], 5.0)
-        self.assertEqual(label, "Wavenumber (cycles/m)")
-
-    def test_get_spatial_axis_without_m_units(self):
-        """distance 單位為 None 時，label 應為 Wavenumber (cycles/channel)。"""
-        test_patch = _make_test_patch(n_distance=10, distance_step=10.0)
-        dist_vals, label = _get_spatial_axis(test_patch, channel_spacing=None)
-        # units = None → "m" not in str(None) → else branch
-        self.assertEqual(label, "Wavenumber (cycles/channel)")
-
-    def test_get_spatial_axis_with_m_units_explicit(self):
-        """channel_spacing 明確指定時，即使 units=None 也應是 cycles/m。"""
-        test_patch = _make_test_patch(n_distance=10, distance_step=10.0)
-        dist_vals, label = _get_spatial_axis(test_patch, channel_spacing=5.0)
-        self.assertEqual(label, "Wavenumber (cycles/m)")
-
-
 class TestPlotFkSpectrum(unittest.TestCase):
     def tearDown(self):
         plt.close("all")
@@ -406,8 +384,34 @@ class TestPlotFkSpectrum(unittest.TestCase):
         self.assertIsInstance(fig, Figure)
         self.assertEqual(len(fig.axes), 1)
 
+    def test_axis_labels_dascore(self):
+        """DASCore specplot 自動標示 Wavenumber / Frequency 軸標籤。"""
+        test_patch = _make_test_patch(n_time=200, n_distance=10)
+        fig = plot_fk_spectrum(test_patch)
+        ax = fig.axes[0]
+        self.assertEqual(ax.get_xlabel(), "Wavenumber [1 / m]")
+        self.assertEqual(ax.get_ylabel(), "Frequency")
+
+    def test_db_range_sets_clim(self):
+        """db_range 應直接設為 colorbar 上下限。"""
+        test_patch = _make_test_patch(n_time=200, n_distance=10)
+        fig = plot_fk_spectrum(test_patch, db_range=(-50, 10))
+        im = fig.axes[0].images[0]
+        self.assertEqual(im.get_clim(), (-50.0, 10.0))
+
+    def test_positive_frequency_only(self):
+        """只顯示正頻率（資料從 0 Hz 開始，不含負頻率）。"""
+        test_patch = _make_test_patch(n_time=200, n_distance=10, sampling_rate=100.0)
+        fig = plot_fk_spectrum(test_patch)
+        ax = fig.axes[0]
+        # image extent 反映實際資料座標；正頻率篩選後最小值應為 0 Hz
+        extent = ax.images[0].get_extent()
+        self.assertEqual(extent[2], 0.0)  # y 軸下限 = 0 Hz
+        # 上限不超過 Nyquist（50 Hz）
+        self.assertLessEqual(extent[3], 50.0)
+
     def test_invalid_dt_raises(self):
-        """單一時間點時 dt 無法計算，應拋錯（不論是建構期還是函式內部）。"""
+        """單一時間點無法取樣（DASCore CoordError，為 ValueError 子類別）。"""
         with self.assertRaises((ValueError, IndexError)):
             time_axis = np.array([np.datetime64("1970-01-01T00:00:00")])
             distance_axis = np.array([0.0, 10.0])
@@ -420,7 +424,7 @@ class TestPlotFkSpectrum(unittest.TestCase):
             plot_fk_spectrum(bad_patch)
 
     def test_zero_dx_raises(self):
-        """所有 distance 相同時 dx=0，應拋錯——不論是 Patch 建構期或函式內部防呆。"""
+        """所有 distance 相同時 dx=0（DASCore CoordError，為 ValueError 子類別）。"""
         with self.assertRaises(ValueError):
             time_axis = np.arange(100) / 100.0
             time_axis = (
