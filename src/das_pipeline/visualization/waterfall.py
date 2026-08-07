@@ -109,14 +109,8 @@ def plot_waterfall(
     )
 
     ax.set_xlabel("Time")
-    coord = coords.get_coord("distance")
-    units_str = str(getattr(coord, 'units', '') or '')
-    if "m" in units_str \
-       or "m" in str(patch.attrs.get('distance_unit', '')) \
-       or (len(dist_vals) > 0 and np.max(dist_vals) > 10 and dist_vals.dtype.kind == 'f'):
-        ax.set_ylabel("Distance (m)")
-    else:
-        ax.set_ylabel("Channel index")
+    from das_pipeline.visualization._label_utils import get_distance_label
+    ax.set_ylabel(get_distance_label(patch, dist_vals))
 
     if title:
         ax.set_title(title)

@@ -392,7 +392,7 @@ class TestPipelineNanIntegration:
 
     def test_exclude_bad_channels_mapping(self):
         """_exclude_bad_channels_from_patch must return correct local_to_original."""
-        from das_pipeline.cli import _exclude_bad_channels_from_patch
+        from das_pipeline.utils.bad_channels import exclude_bad_channels_from_patch as _exclude_bad_channels_from_patch
 
         # 5 channels, channel 1 is bad
         data = np.ones((5, 10), dtype=np.float64)
@@ -414,7 +414,7 @@ class TestPipelineNanIntegration:
 
     def test_exclude_bad_channels_no_bad(self):
         """_exclude_bad_channels_from_patch with no bad indices returns identity."""
-        from das_pipeline.cli import _exclude_bad_channels_from_patch
+        from das_pipeline.utils.bad_channels import exclude_bad_channels_from_patch as _exclude_bad_channels_from_patch
 
         data = np.ones((3, 10), dtype=np.float64)
         patch = dc.Patch(
@@ -583,7 +583,7 @@ class TestSpectrogramWithPatchClean:
     def test_patch_clean_excludes_bad_channels(self):
         """spectrogram should get clean_patch without all-NaN channels."""
         # Simulate what 'plot' command does: exclude bad channels from patch_clean
-        from das_pipeline.cli import _get_bad_channel_indices, _exclude_bad_channels_from_patch
+        from das_pipeline.utils.bad_channels import get_bad_channel_indices as _get_bad_channel_indices, exclude_bad_channels_from_patch as _exclude_bad_channels_from_patch
 
         data = np.ones((5, 100), dtype=np.float64)
         data[1, :] = np.nan  # channel 1 is bad
@@ -616,7 +616,7 @@ class TestSpectrogramWithPatchClean:
 
     def test_spectrogram_channel_mapping_with_bad(self):
         """When --channel is specified, it indexes into patch_clean, not original."""
-        from das_pipeline.cli import _get_bad_channel_indices, _exclude_bad_channels_from_patch
+        from das_pipeline.utils.bad_channels import get_bad_channel_indices as _get_bad_channel_indices, exclude_bad_channels_from_patch as _exclude_bad_channels_from_patch
 
         data = np.ones((5, 100), dtype=np.float64)
         data[1, :] = np.nan
