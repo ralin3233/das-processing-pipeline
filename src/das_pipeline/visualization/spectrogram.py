@@ -100,13 +100,13 @@ def plot_spectrogram(
         nperseg = n_samples
 
     if noverlap is None:
-        noverlap = nperseg // 2
+        noverlap = max(1, (nperseg * 7) // 8)
     elif noverlap >= nperseg:
         logger.warning(
             f"noverlap={noverlap} 不得大於等於 nperseg={nperseg}，"
-            f"自動調整為 noverlap={nperseg // 2}"
+            f"自動調整為 noverlap={max(1, (nperseg * 7) // 8)}"
         )
-        noverlap = nperseg // 2
+        noverlap = max(1, (nperseg * 7) // 8)
 
     f, t, Sxx = scipy_signal.spectrogram(
         ts,
@@ -135,7 +135,7 @@ def plot_spectrogram(
         f,
         Sxx_db,
         cmap=colormap,
-        shading="auto",
+        shading="gouraud",
     )
     if db_range:
         im.set_clim(db_range[0], db_range[1])
