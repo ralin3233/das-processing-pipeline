@@ -12,7 +12,6 @@ class DataConfig(BaseModel):
     format: str = "miniseed"
     file_pattern: str = "*.mseed"
     sampling_rate: Optional[int] = None
-    time_range: Optional[tuple[str, str]] = None
     chunk_duration: np.timedelta64 = np.timedelta64(10, "m")
     filter_safety_samples: int = 0
 
@@ -61,7 +60,7 @@ class OutputConfig(BaseModel):
 
 
 class PreprocessingConfig(BaseModel):
-    time_range: Optional[tuple[float, float]] = None
+    time_range: Optional[tuple[str, str]] = None  # ISO 格式，如 ["2023-02-06T10:24:50", "2023-02-06T10:25:00"]
     distance_range: Optional[tuple[float, float]] = None
     detrend: Optional[str] = "linear"
     taper_ratio: Optional[float] = None

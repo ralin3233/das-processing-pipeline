@@ -1,30 +1,28 @@
-# configs/convert_default.yaml
+# DAS Processing Pipeline — 轉檔設定範例
+# 使用方式: das-pipeline convert --config configs/convert_default.yaml
 
 project_name: "das_convert_default"
 
 # ── 資料來源設定 ──────────────────────────
 data:
-  input_dir: "/mnt/d/ProgramingProject/sinoTech/Academia_Sinica-MiDAS/Events/Event_20230201104446_3600sec_M6"     # 檔案所在資料夾
+  input_dir: "/mnt/d/ProgramingProject/sinoTech/Academia_Sinica-MiDAS/Events/Event_20230201104446_3600sec_M6"     # MiniSEED/HDF5 所在資料夾
   format: "miniseed"               # miniseed | hdf5
-  file_pattern: "01*.mseed"             # glob pattern，篩選要讀哪些檔
-  sampling_rate: null                  # Hz，如果 header 沒寫全可以在這裡指定
-  time_range: null                    # 可選: ["2023-02-15T05:00:00", "2023-02-15T05:30:00"]
-  chunk_duration: "10min"               # 每段處理多長時間
-  filter_safety_samples: 0              # 濾波器額外安全邊際（樣本數），0 表示不增加
+  file_pattern: "01*.mseed"             # glob pattern
+  sampling_rate: null                  # Hz，如 header 沒寫全可在此指定
+  chunk_duration: "10min"               # 每段處理時間長度
 
 # ── 座標對齊設定 ──────────────────────────
 coordinate:
   fiber_geometry_file: "data/raw/geometry.csv"  # 光纖幾何座標檔 (channel -> lat/lon/depth)
   distance_unit: "m"                  # 座標檔案裡距離的單位
-  strict_shape_check: true            # true: shape 對不上直接報錯
   input_unit: "phase"           # 原始資料單位: "phase"（相位差）或 "strain_rate"（應變率）
-  phase_strain_constant: 11.6e-9      # 相位差→應變率常數（11.6×10⁻⁹），公式：ε̇ = constant × f × ΔΦ
+  phase_strain_constant: 11.6e-9      # 相位差→應變率常數（公式：ε̇ = constant × f × ΔΦ）
   missing_channel_strategy: "interpolate"  # channel 缺失處理: interpolate | crop | error
 
 # ── 前處理設定 ──────────────────────────
 preprocessing:
-  time_range: null                      # 可選：限定時間範圍 ["2023-02-06T10:24:50", "2023-02-06T10:25:00"]
-  distance_range: null                  # 可選：限定距離/通道範圍 [0, 500]
+  # time_range: ["2023-02-15T05:00:00", "2023-02-15T05:30:00"]  # 可選：限定時間範圍 (ISO 格式)
+  # distance_range: [0, 500]            # 可選：限定距離/通道範圍
   detrend: "linear"                     # linear | constant | null（關閉）
   taper_ratio: 0.05                    # 濾波前 taper 比例（頭尾各 5%），null 則跳過
   bandpass: [0.01, 0.1]                # [low_cutoff, high_cutoff] Hz
@@ -33,9 +31,7 @@ preprocessing:
 # ── 輸出設定 ──────────────────────────
 output:
   save_dir: "data/processed"
-  filename_pattern: "{project_name}_{timestamp}_chunk{chunk_index:04d}.h5"
-  overwrite: false                    # false: 檔案已存在就報錯
 
-# ── 執行期設定 ──────────────────────────
-runtime:
-  log_level: "INFO"                   # DEBUG | INFO | WARNING
+# ── 執行期設定（可省略） ──────────────────
+# runtime:
+#   log_level: "DEBUG"

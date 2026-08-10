@@ -33,10 +33,6 @@ def get_spool(config: DataConfig) -> dc.BaseSpool:
         logger.info(f"從目錄建立 spool: {input_dir} (格式: {config.format})")
         spool = dc.spool(input_dir)
 
-    if config.time_range:
-        logger.info(f"套用時間範圍篩選: {config.time_range}")
-        spool = spool.select(time=tuple(config.time_range))
-
     return spool
 
 

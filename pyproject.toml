@@ -9,6 +9,8 @@ dependencies = [
     "pyyaml",
     "matplotlib>=3.7",
     "scipy>=1.10",
+    "numpy",
+    "pandas",
     "typing_extensions",
 ]
 
@@ -19,3 +21,7 @@ test = [
 
 [project.scripts]
 das-pipeline = "das_pipeline.cli:app"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
