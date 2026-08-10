@@ -9,7 +9,19 @@ import numpy as np
 import pandas as pd
 
 def _to_naive_utc_datetime64(ts_str: str) -> np.datetime64:
-    """將時間字串（可能含 tz）統一轉為 tz-naive UTC 的 np.datetime64。"""
+    """將時間字串（可能含 tz、numpy 字串或物件）統一轉為 tz-naive UTC 的 np.datetime64。"""
+    if isinstance(ts_str, np.datetime64):
+        return ts_str.astype("datetime64[ns]")
+
+    if hasattr(ts_str, "item"):
+        try:
+            ts_str = ts_str.item()
+        except Exception:
+            pass
+
+    if not isinstance(ts_str, str):
+        ts_str = str(ts_str)
+
     ts = pd.Timestamp(ts_str)
     if ts.tzinfo is not None:
         ts = ts.tz_convert("UTC").tz_localize(None)
@@ -54,15 +66,45 @@ def _crop_to_core(patch: dc.Patch) -> dc.Patch:
         return patch
 
     if core_end <= core_start:
-        logger.warning(f"core range 為空 [{core_start}, {core_end}]，跳過裁切")
-        return patch
+        # core range 無效（chunk 太短），取 chunk 中點附近的最小有效範圍，
+        # 避免將 taper overlap 區域帶入合併導致時間軸非單調。
+        t_coord = patch.get_coord("time")
+        t_vals = np.asarray(t_coord)
+        if len(t_vals) < 2:
+            logger.warning(f"core range 為空且 chunk 長度不足 2，無法裁切")
+            return patch
+        mid = len(t_vals) // 2
+        core_start = t_vals[max(0, mid - 1)]
+        core_end = t_vals[min(len(t_vals) - 1, mid + 1)]
+        logger.warning(
+            "core range 為空，改用 chunk 中點附近 [%s, %s] 強制裁切",
+            core_start, core_end,
+        )
 
     try:
         cropped = patch.select(time=(core_start, core_end))
         return cropped
     except Exception as e:
-        logger.warning(f"core range 裁切失敗: {e}，使用原始 patch")
-        return patch
+        logger.warning("core range 裁切失敗: %s，嘗試手動裁切", e)
+        # fallback: 手動用 boolean index 裁切，避免將 overlap 區域洩漏到合併
+        t_vals = np.asarray(patch.get_coord("time"))
+        mask = (t_vals >= core_start) & (t_vals <= core_end)
+        if mask.sum() < 2:
+            logger.warning("手動裁切後 data 點不足 2，回傳原始 patch")
+            return patch
+        data = np.asarray(patch.data)
+        time_axis = patch.dims.index("time")
+        if time_axis == 0:
+            data = data[mask, :]
+        else:
+            data = data[:, mask]
+        t_new = t_vals[mask]
+        return dc.Patch(
+            data=data,
+            coords={"time": t_new, "distance": patch.get_coord("distance")},
+            dims=patch.dims,
+            attrs=patch.attrs,
+        )
 
 
 def merge_patches(
@@ -133,6 +175,58 @@ def merge_patches(
     # 沿時間軸拼接
     merged_spool = dc.spool(cropped_patches).concatenate(time=None)
     merged = merged_spool[0]
+
+    # ── 驗證時間軸單調性 ──
+    time_coord = merged.get_coord("time")
+    t_vals = np.asarray(time_coord)
+
+    if len(t_vals) > 1:
+        try:
+            t_int = t_vals.astype(np.int64)
+        except Exception:
+            t_int = np.array([pd.Timestamp(x).value for x in t_vals], dtype=np.int64)
+
+        diffs = np.diff(t_int)
+        if np.any(diffs <= 0):
+            n_bad = int(np.sum(diffs <= 0))
+            logger.warning(
+                "合併後時間軸有 %d 處非單調遞增（diff <= 0），"
+                "執行去重/排序修復",
+                n_bad,
+            )
+            # 先按時間排序，再去重；若有相同時間點，保留第一次出現的樣本。
+            order = np.argsort(t_int)
+            t_sorted = t_vals[order]
+            data = np.asarray(merged.data)
+            time_axis = merged.dims.index("time")
+
+            if time_axis == 0:
+                data_sorted = data[order, :]
+            else:
+                data_sorted = data[:, order]
+
+            _, unique_idx = np.unique(t_sorted, return_index=True)
+            unique_idx = np.sort(unique_idx)
+            t_vals = t_sorted[unique_idx]
+            if time_axis == 0:
+                data = data_sorted[unique_idx, :]
+            else:
+                data = data_sorted[:, unique_idx]
+
+            merged = dc.Patch(
+                data=data,
+                coords={
+                    "time": t_vals,
+                    "distance": merged.get_coord("distance"),
+                },
+                dims=merged.dims,
+                attrs=merged.attrs,
+            )
+            logger.info(
+                "修復完成，新時間軸長度: %d (原: %d)",
+                len(t_vals),
+                len(t_vals) + n_bad,
+            )
 
     time_coord = merged.get_coord("time")
     logger.info(

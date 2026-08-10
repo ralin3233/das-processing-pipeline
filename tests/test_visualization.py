@@ -18,6 +18,7 @@ from das_pipeline.visualization.merge import (
     merge_patches,
     _parse_chunk_index,
     _parse_timestamp,
+    _to_naive_utc_datetime64,
 )
 
 
@@ -111,6 +112,11 @@ class TestMergeHelpers(unittest.TestCase):
     def test_parse_timestamp_invalid_format(self):
         self.assertIsNone(_parse_timestamp("data_20250714.h5"))
         self.assertIsNone(_parse_timestamp(""))
+
+    def test_to_naive_utc_datetime64_accepts_numpy_string(self):
+        value = np.str_("2023-02-06T10:24:41.000000000")
+        result = _to_naive_utc_datetime64(value)
+        self.assertEqual(result, np.datetime64("2023-02-06T10:24:41.000000"))
 
 
 # ---------------------------------------------------------------------------

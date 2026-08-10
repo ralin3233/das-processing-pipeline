@@ -26,7 +26,7 @@ def register(app: typer.Typer) -> None:
     def detect(
         path: Annotated[
             Path,
-            typer.Argument(..., help="已處理的 .h5 檔案路徑", exists=True),
+            typer.Argument(..., help="已處理的 .h5 檔案路徑或資料夾路徑", exists=True),
         ],
         sta_window: Annotated[
             float,
@@ -56,6 +56,18 @@ def register(app: typer.Typer) -> None:
             float,
             typer.Option("--merge-window", help="合併相鄰事件閾值 (秒)，0=不合併"),
         ] = 0.0,
+        merge: Annotated[
+            bool,
+            typer.Option("--merge", "-m", help="啟用批次合併模式（合併多個 .h5 為一個 Patch）"),
+        ] = False,
+        pattern: Annotated[
+            str,
+            typer.Option("--pattern", "-p", help="批次合併的 glob pattern"),
+        ] = "*.h5",
+        sort_by: Annotated[
+            str,
+            typer.Option("--sort-by", help="合併排序方式: chunk_index, timestamp"),
+        ] = "chunk_index",
         save: Annotated[
             Optional[Path],
             typer.Option("--save", "-s", help="輸出目錄路徑"),
@@ -71,16 +83,22 @@ def register(app: typer.Typer) -> None:
 
         \b
         使用範例：
+            # 單一檔案檢測
             das-pipeline detect data/processed/event.h5 \\
                 --sta-window 0.5 --lta-window 10.0 \\
                 --trigger-threshold 3.0 --save results/
+
+            # 多檔案合併後檢測
+            das-pipeline detect data/processed/ \\
+                --sta-window 0.5 --lta-window 10.0 \\
+                --merge --pattern "*.h5" --save results/
         """
         from das_pipeline.config import StaLtaConfig
         from das_pipeline.detection import compute_sta_lta_patch, detect_events
 
         # --- 載入 Patch ---
-        file_paths = collect_h5_files(path)
-        patch = load_patch(file_paths)
+        file_paths = collect_h5_files(path, pattern)
+        patch = load_patch(file_paths, merge=merge, sort_by=sort_by)
 
         time_values = patch.coords.get_array("time")
         sampling_rate = 1.0 / (
