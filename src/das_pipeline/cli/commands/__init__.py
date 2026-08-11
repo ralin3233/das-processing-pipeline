@@ -1,8 +1,8 @@
 """CLI subcommand modules."""
 
-from das_pipeline.cli.commands import convert, amplification, detect, plot, overlay
+from das_pipeline.cli.commands import convert, amplification, detect, plot, overlay, check
 
-__all__ = ["convert", "amplification", "detect", "plot", "overlay"]
+__all__ = ["convert", "amplification", "detect", "plot", "overlay", "check"]
 
 
 def register_all(app: "typer.Typer") -> None:
@@ -12,3 +12,4 @@ def register_all(app: "typer.Typer") -> None:
     detect.register(app)
     plot.register(app)
     overlay.register(app)
+    check.register(app)
