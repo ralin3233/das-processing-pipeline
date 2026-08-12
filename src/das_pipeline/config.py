@@ -90,6 +90,16 @@ class TeleseismicConfig(BaseModel):
     skip_channels: int = 0          # 跳過前 N 個 channel（井口附近易受雜訊干擾）
 
 
+class SnrConfig(BaseModel):
+    """單一 channel SNR（訊雜比）分析設定。"""
+    event_distance_km: float
+    event_origin_time: str          # ISO 格式，如 "2023-02-06T01:17:35"
+    channel_index: int
+    velocity_min: float = 2.0       # 最慢群速度 (km/s)
+    velocity_max: float = 4.0       # 最快群速度 (km/s)
+    noise_offset_s: float = 30.0    # 雜訊窗與訊號窗之間的間隔 (秒)
+
+
 class StaLtaConfig(BaseModel):
     """STA/LTA 觸發檢測設定，所有參數皆可透過 CLI 設定。"""
     sta_window_s: float = 0.5          # STA 短窗長度 (秒)

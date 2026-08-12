@@ -11,6 +11,9 @@
 - 輸出 DASDAE HDF5，並在 chunk 屬性中保存核心時間範圍，供後續合併
 - 遠震地層放大效應分析：依震央距離與表面波群速度計算時間窗，以井底最深 N 個 channel（或水平光纖指定距離範圍）為基準，計算各 channel 的放大倍率並繪圖
 - 多事件疊圖：將多個放大倍率 CSV 疊加顯示，並繪製中位數曲線
+- STA/LTA 觸發檢測：逐通道計算 STA/LTA ratio，以空間一致性篩選真實地震事件，輸出 CSV/JSON
+- 單一 Channel SNR 分析：計算訊號窗與雜訊窗的平均功率比，輸出 SNR（dB）
+- 資料覆蓋率檢查：掃描 .h5 目錄，繪製時間 × 距離覆蓋網格圖，標記 Data/NaN/未覆蓋/重疊
 - CLI 視覺化：Waterfall、F-K spectrum、Spectrogram，以及多個 chunk 的合併繪圖
 - YAML 設定檔與 Pydantic 驗證
 
@@ -130,15 +133,65 @@ das-pipeline plot data/processed --merge --pattern "*.h5" \
 
 合併模式會使用轉檔時寫入的 `core_time_start` 與 `core_time_end` 裁掉 overlap 區域，再沿時間軸串接。
 
+### 6. STA/LTA 觸發檢測
+
+對已處理的 `.h5` 檔案逐通道計算 STA/LTA ratio，再透過空間一致性篩選真實地震事件：
+
+```bash
+# 單一檔案檢測
+das-pipeline detect data/processed/event.h5 \
+  --sta-window 0.5 --lta-window 10.0 \
+  --trigger-threshold 3.0 --save results/
+
+# 多檔案合併後檢測
+das-pipeline detect data/processed/ \
+  --sta-window 0.5 --lta-window 10.0 \
+  --merge --pattern "*.h5" --save results/
+```
+
+依 `--format`（`csv`、`json` 或 `all`）輸出事件清單，包含起訖時間、峰值 ratio 與觸發 channel 列表。
+
+### 7. 單一 Channel SNR 分析
+
+根據震央距離與表面波群速度計算訊號／雜訊時間窗，輸出特定 channel 的 SNR（dB）：
+
+```bash
+# 單一檔案
+das-pipeline snr data/processed/event.h5 \
+  -c 100 -d 3000 -o "2023-02-06T01:17:35"
+
+# 多檔案合併後分析，輸出 JSON
+das-pipeline snr data/processed/ \
+  -c 100 -d 3000 -o "2023-02-06T01:17:35" \
+  --merge --save results/
+```
+
+### 8. 資料覆蓋率檢查
+
+掃描目錄下多個 `.h5` 檔案，繪製時間 × 距離的覆蓋網格圖，以顏色標記 Data／NaN／未覆蓋／重疊：
+
+```bash
+# 自動時間 bin
+das-pipeline check data/raw/
+
+# 指定時間 bin 並存檔
+das-pipeline check data/raw/ --time-bin 10 --save outputs/ --dpi 200
+```
+
 ## CLI 參考
 
 ```bash
 das-pipeline --help
 das-pipeline convert --help
 das-pipeline amplification --help
+das-pipeline detect --help
+das-pipeline snr --help
 das-pipeline plot --help
 das-pipeline overlay --help
+das-pipeline check --help
 ```
+
+所有子命令均支援全域選項 `--log-level DEBUG|INFO|WARNING|ERROR`（預設 `INFO`）。
 
 ### `convert`
 
@@ -201,6 +254,54 @@ das-pipeline overlay --help
 | `--title`, `-t` | 圖表自訂標題 |
 | `--dpi` | 圖片解析度，預設 150 |
 | `--csv` | 同時輸出疊圖資料至 CSV（各事件 + 中位數） |
+| `--no-display` | 存檔模式下不彈出視窗 |
+
+### `detect`
+
+`path` 可為單一 `.h5` 檔或目錄。目錄模式會依 `--pattern` 收集檔案；只有加上 `--merge` 才會將多個檔案合併。
+
+| 參數 | 說明 |
+| --- | --- |
+| `--sta-window` | STA 短窗長度（秒），預設 0.5 |
+| `--lta-window` | LTA 長窗長度（秒），預設 10.0 |
+| `--trigger-threshold` | STA/LTA ratio 觸發閾值，預設 3.0 |
+| `--detrigger-threshold` | STA/LTA ratio 解除觸發閾值，預設 1.5 |
+| `--min-channels` | 最少同時觸發通道數（空間一致性），預設 30 |
+| `--min-duration` | 最短事件持續時間（秒），預設 0.1 |
+| `--merge-window` | 合併相鄰事件閾值（秒），0=不合併 |
+| `--merge`, `-m` | 合併多個 chunk 後檢測 |
+| `--pattern`, `-p` | 目錄模式的 glob，預設 `*.h5` |
+| `--sort-by` | 合併排序：`chunk_index`（預設）或 `timestamp` |
+| `--save`, `-s` | 輸出目錄路徑 |
+| `--format`, `-f` | 輸出格式：`csv`、`json` 或 `all`（預設） |
+
+### `snr`
+
+`path` 可為單一 `.h5` 檔或目錄。目錄模式會依 `--pattern` 收集檔案；只有加上 `--merge` 才會將多個檔案合併。
+
+| 參數 | 說明 |
+| --- | --- |
+| `--channel`, `-c` | 要分析的 channel 索引（必要） |
+| `--distance`, `-d` | 震央距離（km，必要） |
+| `--origin-time`, `-o` | 發震時刻，ISO 格式（必要） |
+| `--vmin` | 最慢群速度（km/s），預設 2.0 |
+| `--vmax` | 最快群速度（km/s），預設 4.0 |
+| `--noise-offset` | 雜訊窗與訊號窗之間隔（秒），預設 30.0 |
+| `--merge`, `-m` | 合併多個 chunk 後分析 |
+| `--pattern`, `-p` | 目錄模式的 glob，預設 `*.h5` |
+| `--sort-by` | 合併排序：`chunk_index`（預設）或 `timestamp` |
+| `--save`, `-s` | 輸出 JSON 結果到指定目錄 |
+
+### `check`
+
+| 參數 | 說明 |
+| --- | --- |
+| `--pattern`, `-p` | 檔案 glob pattern，預設 `*.h5` |
+| `--time-bin`, `-t` | 時間 bin 大小（秒），設為 `auto` 自動計算（預設） |
+| `--title` | 圖表自訂標題 |
+| `--save`, `-s` | 輸出圖片目錄；未指定時互動式顯示 |
+| `--format` | 圖檔格式：`png`（預設）、`pdf`、`svg` |
+| `--dpi` | 圖片解析度，預設 150 |
 | `--no-display` | 存檔模式下不彈出視窗 |
 
 ## 設定檔參考
@@ -274,15 +375,16 @@ das-pipeline overlay --help
 ```text
 ├── configs/config.yaml.example  # 設定檔範例
 ├── src/das_pipeline/
-│   ├── cli.py                   # convert / amplification / plot / overlay 指令
 │   ├── config.py                # Pydantic 設定模型
 │   ├── pipeline.py              # 轉檔流程
+│   ├── cli/                     # CLI 入口與子命令（convert / amplification / detect / snr / plot / overlay / check）
 │   ├── io/                      # 載入、分段、輸出與座標對齊
-│   ├── preprocessing/           # 前處理步驟
-│   ├── teleseismic/             # 遠震地層放大效應分析
+│   ├── preprocessing/           # 前處理步驟（select / detrend / bandpass / decimate / taper / NaN 處理）
+│   ├── detection/               # STA/LTA 觸發檢測
+│   ├── teleseismic/             # 遠震地層放大效應分析與 SNR 計算
 │   ├── overlay/                 # 多事件放大倍率疊圖
-│   ├── visualization/           # 圖表與 chunk 合併
-│   └── utils/                   # 共用工具（日誌設定等）
+│   ├── visualization/           # Waterfall / F-K / Spectrogram 繪圖與 chunk 合併
+│   └── utils/                   # 共用工具（日誌設定、壞道排除等）
 ├── tests/
 └── pyproject.toml
 ```
