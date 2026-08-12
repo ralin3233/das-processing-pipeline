@@ -128,17 +128,12 @@ class StaLtaConfig(BaseModel):
         return v
 
 
-class RuntimeConfig(BaseModel):
-    log_level: str = "INFO"
-
-
 class ConvertConfig(BaseModel):
     project_name: str
     data: DataConfig
     coordinate: CoordinateConfig
     preprocessing: PreprocessingConfig = PreprocessingConfig()
     output: OutputConfig
-    runtime: RuntimeConfig = RuntimeConfig()
 
     @classmethod
     def from_yaml(cls, path: Path) -> "ConvertConfig":
