@@ -1,4 +1,4 @@
-# src/das_pipeline/visualization/waterfall.py
+"""瀑布圖模組：繪製 DAS time × distance 振幅圖。"""
 
 import logging
 from typing import Optional, Tuple

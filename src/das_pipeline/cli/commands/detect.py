@@ -1,4 +1,8 @@
-# src/das_pipeline/cli/commands/detect.py
+"""CLI 命令：STA/LTA 觸發檢測。
+
+對已處理的 .h5 檔案逐通道計算 STA/LTA ratio，
+並以空間一致性篩選真實訊號事件，輸出 JSON/CSV。
+"""
 
 import csv as csv_module
 import json

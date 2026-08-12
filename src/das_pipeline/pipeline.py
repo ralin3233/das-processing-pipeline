@@ -1,3 +1,8 @@
+"""DAS Pipeline 主管線模組。
+
+讀取原始 MiniSEED 資料、執行前處理、座標對齊，並將結果寫入 HDF5。
+"""
+
 import logging
 
 from das_pipeline.config import ConvertConfig
@@ -9,6 +14,25 @@ logger = logging.getLogger(__name__)
 
 
 def run_convert(config: ConvertConfig):
+    """執行完整轉檔流程：讀取 → NaN 清理 → 前處理 → 座標對齊 → 儲存。
+
+    Pipeline:
+        1. 從 spool 讀取資料，按 chunk_duration 分段
+        2. 每個 chunk 先執行 NaN sanitization（線性插值補洞）
+        3. 依序執行前處理（select / detrend / taper / bandpass / decimate）
+        4. 將 distance 座標從 channel index 對齊為實際距離（米）
+        5. 寫入 DASDAE 格式的 .h5 檔案
+
+    Parameters
+    ----------
+    config : ConvertConfig
+        包含 data, coordinate, preprocessing, output 的完整設定。
+
+    Returns
+    -------
+    list[Path]
+        所有產出檔案的路徑列表。
+    """
     spool = spool_loader.get_spool(config.data)
 
     save_paths = []

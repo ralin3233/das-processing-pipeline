@@ -1,4 +1,4 @@
-# src/das_pipeline/utils/logging_config.py
+"""Logging 設定模組：設定 root logger 同時輸出到 console 與檔案。"""
 
 import logging
 import sys

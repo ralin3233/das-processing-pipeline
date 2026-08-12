@@ -1,4 +1,8 @@
-# src/das_pipeline/teleseismic/amplification.py
+"""遠震地層放大效應分析模組。
+
+根據震央距離與表面波群速度計算時間窗、擷取雷利波列，
+以基準 channel 中位數振幅為參考，計算各 channel 的放大倍率。
+"""
 
 import logging
 import warnings

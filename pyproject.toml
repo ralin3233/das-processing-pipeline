@@ -2,16 +2,16 @@
 name = "das-pipeline"
 version = "0.1.0"
 dependencies = [
-    "typer",
-    "pydantic",
-    "dascore",
-    "obspy",
-    "pyyaml",
-    "matplotlib>=3.7",
-    "scipy>=1.10",
-    "numpy",
-    "pandas",
-    "typing_extensions",
+    "typer>=0.27",
+    "pydantic>=2.13",
+    "dascore>=0.1.20",
+    "obspy>=1.5",
+    "pyyaml>=6.0",
+    "matplotlib>=3.11",
+    "scipy>=1.18",
+    "numpy>=2.5",
+    "pandas>=3.0",
+    "typing_extensions>=4.16",
 ]
 
 [project.optional-dependencies]

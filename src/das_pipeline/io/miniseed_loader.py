@@ -1,3 +1,8 @@
+"""MiniSEED 讀取模組：使用 ObsPy 讀取原始 MiniSEED 檔案並轉為 DASCore Patch。
+
+處理斷訊 gap 策略：同 station 的 trace 強制合併，缺口以 NaN 填補。
+"""
+
 from pathlib import Path
 import dascore as dc
 import numpy as np

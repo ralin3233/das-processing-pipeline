@@ -1,4 +1,8 @@
-# src/das_pipeline/cli/commands/overlay.py
+"""CLI 命令：多事件放大倍率疊圖。
+
+讀取多個 ``das-pipeline amplification --csv`` 輸出的 CSV，
+疊加各事件曲線並繪製中位數線。
+"""
 
 import logging
 from pathlib import Path

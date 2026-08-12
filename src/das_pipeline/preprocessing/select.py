@@ -1,4 +1,4 @@
-# src/das_pipeline/preprocessing/select.py
+"""時間/距離選取模組：依指定的時間範圍與距離範圍裁切 Patch。"""
 
 import logging
 from typing import Optional

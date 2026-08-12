@@ -1,4 +1,7 @@
-# src/das_pipeline/cli/commands/plot.py
+"""CLI 命令：視覺化繪圖工具（plot 子命令群組）。
+
+提供 waterfall、F-K 頻譜圖、spectrogram 三種繪圖功能。
+"""
 
 import logging
 from pathlib import Path

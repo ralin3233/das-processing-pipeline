@@ -1,4 +1,7 @@
-# src/das_pipeline/visualization/merge.py
+"""Patch 合併模組：依 core_time 裁切 taper 邊緣後沿時間軸拼接多個 chunk。
+
+支援按 chunk_index 或 timestamp 排序，並自動處理時間軸非單調問題。
+"""
 
 import logging
 import re

@@ -1,4 +1,4 @@
-# src/das_pipeline/preprocessing/taper.py
+"""Taper 模組：對時間軸頭尾進行 cosine taper，減少濾波邊緣效應。"""
 
 import logging
 from typing import Optional

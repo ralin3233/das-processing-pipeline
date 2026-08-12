@@ -1,3 +1,9 @@
+"""座標工具模組：將 Patch 的 distance 軸從 channel index 對齊為實際物理距離（米）。
+
+支援三種缺失 channel 處理策略：interpolate / crop / error，
+並提供相位差轉應變率的單位轉換。
+"""
+
 import logging
 from pathlib import Path
 

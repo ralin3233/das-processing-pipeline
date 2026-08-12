@@ -119,16 +119,24 @@ das-pipeline overlay results/ \
 
 ```bash
 # 繪製單一檔案的 Waterfall
-das-pipeline plot data/processed/my_das_run_20260717T143000_chunk0000.h5
+das-pipeline plot waterfall data/processed/my_das_run_20260717T143000_chunk0000.h5
 
-# 同時產生三種圖並存檔，不開啟視窗
-das-pipeline plot data/processed/my_das_run_20260717T143000_chunk0000.h5 \
-  --type waterfall --type fk --type spectrogram \
+# Waterfall 配合時間與距離範圍篩選，存檔不顯示視窗
+das-pipeline plot waterfall data/processed/my_das_run_20260717T143000_chunk0000.h5 \
+  --time-range "2023-02-06T10:24:50" "2023-02-06T10:25:00" \
   --save figures --no-display
 
-# 合併資料夾中的 chunk 後繪圖
-das-pipeline plot data/processed --merge --pattern "*.h5" \
-  --type waterfall --save figures --no-display
+# 合併資料夾中的 chunk 後繪製 Waterfall
+das-pipeline plot waterfall data/processed --merge --pattern "*.h5" \
+  --save figures --no-display
+
+# F-K 頻譜圖
+das-pipeline plot fk data/processed/my_das_run_20260717T143000_chunk0000.h5 \
+  --channel-spacing 1.0 --save figures
+
+# Spectrogram
+das-pipeline plot spectrogram data/processed/my_das_run_20260717T143000_chunk0000.h5 \
+  --channel 100 --save figures
 ```
 
 合併模式會使用轉檔時寫入的 `core_time_start` 與 `core_time_end` 裁掉 overlap 區域，再沿時間軸串接。
@@ -222,26 +230,54 @@ das-pipeline check --help
 | `--dpi` | 圖片解析度，預設 150 |
 | `--no-display` | 存檔模式下不彈出視窗 |
 
-### `plot`
+### `plot waterfall`
 
 `path` 可為單一 `.h5` 檔或目錄。目錄模式會依 `--pattern` 收集檔案；只有加上 `--merge` 才會將多個檔案合併。
 
 | 參數 | 說明 |
 | --- | --- |
-| `--type`, `-t` | `waterfall`、`fk`、`spectrogram`；可重複指定，預設 `waterfall` |
 | `--merge`, `-m` | 合併多個 chunk 後繪圖 |
 | `--pattern`, `-p` | 目錄模式的 glob，預設 `*.h5` |
 | `--sort-by` | 合併排序：`chunk_index`（預設）或 `timestamp` |
-| `--channel` | Spectrogram 的通道索引；未指定時使用中間通道 |
-| `--time-range` | Waterfall 時間範圍：起訖 ISO 時間 |
-| `--distance-range`, `--dist-range` | Waterfall 距離／通道範圍 |
-| `--freq-range` | F-K 或 Spectrogram 的頻率範圍（Hz） |
-| `--channel-spacing` | F-K 的通道間距（m） |
+| `--time-range` | 時間範圍：起訖 ISO 時間 |
+| `--distance-range`, `--dist-range` | 距離／通道範圍 |
+| `--colormap` | Matplotlib colormap，預設 `seismic` |
+| `--title` | 自訂圖表標題 |
 | `--save`, `-s` | 圖檔輸出目錄；未指定時顯示互動式視窗 |
 | `--format` | 圖檔格式：`png`（預設）、`pdf`、`svg` |
 | `--dpi` | 圖片解析度，預設 150 |
-| `--colormap` | Matplotlib colormap；預設 `seismic` |
+| `--no-display` | 存檔後不顯示視窗 |
+
+### `plot fk`
+
+| 參數 | 說明 |
+| --- | --- |
+| `--merge`, `-m` | 合併多個 chunk 後繪圖 |
+| `--pattern`, `-p` | 目錄模式的 glob，預設 `*.h5` |
+| `--sort-by` | 合併排序：`chunk_index`（預設）或 `timestamp` |
+| `--channel-spacing` | 通道間距（m），必要 |
+| `--freq-range` | 頻率範圍（Hz） |
+| `--colormap` | Matplotlib colormap，預設 `hot` |
 | `--title` | 自訂圖表標題 |
+| `--save`, `-s` | 圖檔輸出目錄；未指定時顯示互動式視窗 |
+| `--format` | 圖檔格式：`png`（預設）、`pdf`、`svg` |
+| `--dpi` | 圖片解析度，預設 150 |
+| `--no-display` | 存檔後不顯示視窗 |
+
+### `plot spectrogram`
+
+| 參數 | 說明 |
+| --- | --- |
+| `--merge`, `-m` | 合併多個 chunk 後繪圖 |
+| `--pattern`, `-p` | 目錄模式的 glob，預設 `*.h5` |
+| `--sort-by` | 合併排序：`chunk_index`（預設）或 `timestamp` |
+| `--channel` | 通道索引；未指定時使用中間通道 |
+| `--freq-range` | 頻率範圍（Hz） |
+| `--colormap` | Matplotlib colormap，預設 `viridis` |
+| `--title` | 自訂圖表標題 |
+| `--save`, `-s` | 圖檔輸出目錄；未指定時顯示互動式視窗 |
+| `--format` | 圖檔格式：`png`（預設）、`pdf`、`svg` |
+| `--dpi` | 圖片解析度，預設 150 |
 | `--no-display` | 存檔後不顯示視窗 |
 
 ### `overlay`
@@ -306,16 +342,17 @@ das-pipeline check --help
 
 ## 設定檔參考
 
-設定檔包含六個區塊：
+設定檔包含五個區塊：
 
 | 區塊 | 主要用途 |
 | --- | --- |
 | `project_name` | 輸出檔名使用的專案名稱 |
-| `data` | 輸入資料、格式、時間篩選與 chunk 設定 |
+| `data` | 輸入資料、格式與 chunk 設定 |
 | `coordinate` | 光纖幾何座標對齊與單位轉換設定 |
-| `preprocessing` | 範圍裁切、detrend、bandpass、decimate |
+| `preprocessing` | 範圍裁切、detrend、taper、bandpass、decimate |
 | `output` | 儲存路徑與輸出檔名 |
-| `runtime` | 日誌層級設定 |
+
+> 日誌層級（log level）由全域 CLI 選項 `--log-level` 控制，不再透過設定檔。
 
 ### `data`
 
@@ -325,9 +362,7 @@ das-pipeline check --help
 | `format` | `miniseed` 時使用 ObsPy 讀取；其他值交由 DASCore 建立 spool |
 | `file_pattern` | MiniSEED 的檔案 glob；非 MiniSEED 目錄由 DASCore 掃描 |
 | `sampling_rate` | Hz。若提供，也會用於將濾波安全邊際換算為秒 |
-| `time_range` | 輸入資料的 ISO 起訖時間篩選 |
 | `chunk_duration` | 每個 chunk 的時間，例如 `"10min"`、`"1h"` |
-| `taper_ratio` | 每個 chunk 用於 overlap 與濾波 taper 的比例，預設 `0.05` |
 | `filter_safety_samples` | 額外 overlap 樣本數；需同時設定 `sampling_rate` 才會生效 |
 
 ### `coordinate`
@@ -360,6 +395,7 @@ das-pipeline check --help
 | `distance_range` | 距離／通道範圍 |
 | `detrend` | `linear`、`constant` 或 `null` |
 | `bandpass` | `[low_cutoff, high_cutoff]` Hz；設為 `null` 跳過 |
+| `taper_ratio` | 濾波前 taper 比例（頭尾各半），設為 `null` 跳過 |
 | `decimate_factor` | 整數且至少為 2；設為 `null` 跳過 |
 
 ### `output`

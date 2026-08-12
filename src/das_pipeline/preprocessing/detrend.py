@@ -1,4 +1,4 @@
-# src/das_pipeline/preprocessing/detrend.py
+"""去趨勢模組：對時間軸進行線性或均值去趨勢。"""
 
 import logging
 from typing import Optional

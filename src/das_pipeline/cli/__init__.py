@@ -1,4 +1,8 @@
-# src/das_pipeline/cli/__init__.py
+"""CLI 入口模組：使用 Typer 建構 DAS Pipeline 命令列介面。
+
+提供 ``das-pipeline`` 主命令，並註冊所有子命令：
+convert, amplification, detect, plot, overlay, check, snr。
+"""
 
 import typer
 from typing_extensions import Annotated

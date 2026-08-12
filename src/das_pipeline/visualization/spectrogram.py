@@ -1,4 +1,4 @@
-# src/das_pipeline/visualization/spectrogram.py
+"""時頻圖模組：對單一 channel 繪製 Spectrogram (time × frequency PSD)。"""
 
 import logging
 from typing import Optional, Tuple

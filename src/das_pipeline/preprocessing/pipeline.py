@@ -1,4 +1,4 @@
-# src/das_pipeline/preprocessing/pipeline.py
+"""前處理管線模組：依序執行 select → detrend → taper → bandpass → decimate。"""
 
 import logging
 

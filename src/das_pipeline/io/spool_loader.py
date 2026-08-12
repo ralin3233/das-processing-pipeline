@@ -1,4 +1,8 @@
-# src/das_pipeline/io/spool_loader.py
+"""Spool 管理模組：建立 DASCore Spool 並提供固定時間長度的分段迭代。
+
+支援 MiniSEED 與 HDF5 兩種輸入格式，並自動計算 taper overlap
+以確保相鄰 chunk 無縫銜接。
+"""
 
 import logging
 from pathlib import Path

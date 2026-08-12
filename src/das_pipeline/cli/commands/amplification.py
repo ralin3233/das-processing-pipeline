@@ -1,4 +1,8 @@
-# src/das_pipeline/cli/commands/amplification.py
+"""CLI 命令：遠震地層放大效應分析。
+
+根據震央距離與表面波群速度計算時間窗、擷取雷利波列，
+計算各 channel 的放大倍率並繪圖。
+"""
 
 import csv as csv_module
 import logging

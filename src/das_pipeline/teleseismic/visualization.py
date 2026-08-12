@@ -1,4 +1,4 @@
-# src/das_pipeline/teleseismic/visualization.py
+"""遠震放大倍率視覺化：繪製放大倍率 vs. 距離圖。"""
 
 import logging
 from pathlib import Path

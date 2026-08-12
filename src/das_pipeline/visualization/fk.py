@@ -1,4 +1,4 @@
-# src/das_pipeline/visualization/fk.py
+"""F-K 頻譜圖模組：使用 2D FFT 繪製 frequency × wavenumber 功率譜。"""
 
 import logging
 from typing import Optional, Tuple

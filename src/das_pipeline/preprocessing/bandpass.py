@@ -1,4 +1,4 @@
-# src/das_pipeline/preprocessing/bandpass.py
+"""帶通濾波模組：使用 DASCore 內建 Butterworth 濾波器對時間軸進行帶通濾波。"""
 
 import logging
 from typing import Optional

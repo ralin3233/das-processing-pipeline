@@ -1,4 +1,4 @@
-# src/das_pipeline/preprocessing/decimate.py
+"""降採樣模組：使用 DASCore 內建 anti-aliasing 濾波後對時間軸降採樣。"""
 
 import logging
 from typing import Optional
