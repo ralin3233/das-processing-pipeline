@@ -5,10 +5,12 @@
 - ``compute_channel_snr``: 單一 channel 訊雜比
 - ``compute_power``: 平均功率計算
 - ``plot_amplification``: 放大倍率繪圖
+- ``pick_snr_windows_interactive``: 互動式 SNR 訊號／雜訊窗選取
 """
 
 from das_pipeline.teleseismic.amplification import compute_amplification
 from das_pipeline.teleseismic.snr import compute_channel_snr, compute_power
+from das_pipeline.teleseismic.snr_interactive import pick_snr_windows_interactive
 from das_pipeline.teleseismic.visualization import plot_amplification
 
 __all__ = [
@@ -16,4 +18,5 @@ __all__ = [
     "compute_channel_snr",
     "compute_power",
     "plot_amplification",
+    "pick_snr_windows_interactive",
 ]

@@ -22,9 +22,65 @@ from das_pipeline.cli.helpers import (
     log_patch_info,
 )
 from das_pipeline.config import SnrConfig
-from das_pipeline.teleseismic.snr import compute_channel_snr
+from das_pipeline.teleseismic.amplification import (
+    _compute_time_window,
+    _parse_origin_time,
+)
+from das_pipeline.teleseismic.snr import compute_channel_snr, _compute_noise_window
+from das_pipeline.teleseismic.snr_interactive import pick_snr_windows_interactive
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_default_windows(
+    patch,
+    config: SnrConfig,
+) -> tuple[
+    tuple[np.datetime64, np.datetime64],
+    tuple[np.datetime64, np.datetime64],
+]:
+    """依震央距離與群速度計算預設訊號窗與雜訊窗。
+
+    Parameters
+    ----------
+    patch : dc.Patch
+        已載入的 DAS Patch。
+    config : SnrConfig
+        SNR 分析設定。
+
+    Returns
+    -------
+    tuple
+        ``(default_signal_window, default_noise_window)``，皆為
+        ``(start, end)`` 的 ``datetime64`` 元組。
+    """
+    origin_time = _parse_origin_time(config.event_origin_time)
+    t_signal_start, t_signal_end = _compute_time_window(
+        origin_time,
+        config.event_distance_km,
+        config.velocity_min,
+        config.velocity_max,
+    )
+    time_coord = patch.get_coord("time")
+    patch_t_min: np.datetime64 = time_coord.min()  # type: ignore[assignment]
+
+    default_noise = _compute_noise_window(
+        t_signal_start, t_signal_end, patch_t_min, config.noise_offset_s,
+    )
+    return (t_signal_start, t_signal_end), default_noise
+
+
+def _run_interactive_snr(patch, config: SnrConfig):
+    """啟動互動式選窗，回傳 SNR 結果 dict（或 None）。"""
+    default_signal, default_noise = _compute_default_windows(patch, config)
+    _, _, result = pick_snr_windows_interactive(
+        patch=patch,
+        channel_index=config.channel_index,
+        default_signal_window=default_signal,
+        default_noise_window=default_noise,
+        event_distance_km=config.event_distance_km,
+    )
+    return result
 
 
 def register(app: typer.Typer) -> None:
@@ -77,6 +133,13 @@ def register(app: typer.Typer) -> None:
             Optional[Path],
             typer.Option("--save", "-s", help="輸出 JSON 結果到指定目錄"),
         ] = None,
+        interactive: Annotated[
+            bool,
+            typer.Option(
+                "--interactive", "-i",
+                help="互動式選窗模式：在波形圖上拖曳圈選訊號／雜訊窗",
+            ),
+        ] = False,
     ):
         """計算單一 channel 的 SNR（訊雜比，單位 dB）。
 
@@ -93,6 +156,10 @@ def register(app: typer.Typer) -> None:
             das-pipeline snr data/processed/ \\
                 -c 100 -d 3000 -o "2023-02-06T01:17:35" \\
                 --merge --save results/
+
+            互動式選窗（在波形圖上拖曳圈選訊號／雜訊窗）：
+            das-pipeline snr data/processed/event1.h5 \\
+                -c 100 -d 3000 -o "2023-02-06T01:17:35" --interactive
         """
         # --- 收集檔案 ---
         file_paths = collect_h5_files(path, pattern)
@@ -129,7 +196,14 @@ def register(app: typer.Typer) -> None:
         )
 
         # --- 計算 SNR ---
-        result = compute_channel_snr(patch, config)
+        if interactive:
+            typer.echo(
+                "互動式選窗：按 s 切換訊號窗、n 切換雜訊窗，"
+                "拖曳圈選後按 q 或直接關閉視窗完成。"
+            )
+            result = _run_interactive_snr(patch, config)
+        else:
+            result = compute_channel_snr(patch, config)
 
         if result is None:
             typer.echo("❌ 無法計算 SNR（時間窗無交集或資料無效）")

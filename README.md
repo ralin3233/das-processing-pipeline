@@ -172,7 +172,18 @@ das-pipeline snr data/processed/event.h5 \
 das-pipeline snr data/processed/ \
   -c 100 -d 3000 -o "2023-02-06T01:17:35" \
   --merge --save results/
+
+# 互動式選窗：在波形圖上拖曳圈選訊號／雜訊窗後自動計算 SNR
+das-pipeline snr data/processed/event.h5 \
+  -c 100 -d 3000 -o "2023-02-06T01:17:35" --interactive
 ```
+
+互動式選窗模式下，會以距離／速度先算出建議的訊號窗（綠色）與雜訊窗（紅色）
+作為初始值，接著在波形圖上：
+
+- 按 `s` 切換到訊號窗選取模式、按 `n` 切換到雜訊窗選取模式
+- 按住滑鼠左鍵拖曳即設定目前模式的視窗
+- 按 `q` 或直接關閉視窗完成選取，程式會即時算出並輸出 SNR（dB）
 
 ### 8. 資料覆蓋率檢查
 
@@ -327,6 +338,7 @@ das-pipeline check --help
 | `--pattern`, `-p` | 目錄模式的 glob，預設 `*.h5` |
 | `--sort-by` | 合併排序：`chunk_index`（預設）或 `timestamp` |
 | `--save`, `-s` | 輸出 JSON 結果到指定目錄 |
+| `--interactive`, `-i` | 互動式選窗模式：在波形圖上拖曳圈選訊號／雜訊窗 |
 
 ### `check`
 
