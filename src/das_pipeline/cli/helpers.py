@@ -107,24 +107,42 @@ def log_patch_info(patch: dc.Patch) -> None:
 
 def handle_bad_channels_for_detection(
     patch: dc.Patch,
+    ignore_leading_channels: int = 0,
 ) -> tuple[dc.Patch, list[int]]:
-    """Warn about and remove bad channels for STA/LTA detection.
+    """Remove ignored leading and entirely-NaN channels for detection.
 
     Returns ``(cleaned_patch, local_to_original)``.
     """
     import typer
-    bad_indices = get_bad_channel_indices(patch)
-    if not bad_indices:
-        n_ch = patch.shape[0] if "distance" in patch.dims else patch.shape[1]
-        return patch, list(range(n_ch))
+    if ignore_leading_channels < 0:
+        raise ValueError("ignore_leading_channels 必須 >= 0")
 
-    n_before = patch.shape[0] if "distance" in patch.dims else patch.shape[1]
-    typer.echo(
-        f"⚠️  此檔案有 {len(bad_indices)} 個 channel 完全無資料"
-        f"（index: {bad_indices}），將不參與 STA/LTA 檢測。"
+    channel_axis = patch.dims.index("distance") if "distance" in patch.dims else 0
+    n_channels = patch.shape[channel_axis]
+    if ignore_leading_channels > n_channels:
+        raise ValueError(
+            f"ignore_leading_channels ({ignore_leading_channels}) 不可超過 channel 數 ({n_channels})"
+        )
+
+    bad_indices = get_bad_channel_indices(patch)
+    ignored_indices = list(range(ignore_leading_channels))
+    excluded_indices = sorted(set(bad_indices) | set(ignored_indices))
+    if not excluded_indices:
+        return patch, list(range(n_channels))
+
+    if bad_indices:
+        typer.echo(
+            f"⚠️  此檔案有 {len(bad_indices)} 個 channel 完全無資料"
+            f"（index: {bad_indices}），將不參與 STA/LTA 檢測。"
+        )
+    if ignored_indices:
+        typer.echo(
+            f"⚠️  忽略前 {ignore_leading_channels} 個 channel，避免井口雜訊干擾。"
+        )
+    cleaned, n_excluded, local_to_orig = exclude_bad_channels_from_patch(
+        patch, excluded_indices,
     )
-    cleaned, n_excluded, local_to_orig = exclude_bad_channels_from_patch(patch, bad_indices)
-    typer.echo(f"    排除後剩餘 channel 數: {n_before - n_excluded}")
+    typer.echo(f"    排除後剩餘 channel 數: {n_channels - n_excluded}")
     return cleaned, local_to_orig
 
 

@@ -4,6 +4,10 @@
 並以空間一致性進行事件觸發檢測。
 """
 
-from das_pipeline.detection.sta_lta import compute_sta_lta_patch, detect_events
+from das_pipeline.detection.sta_lta import (
+	compute_sta_lta_components,
+	compute_sta_lta_patch,
+	detect_events,
+)
 
-__all__ = ["compute_sta_lta_patch", "detect_events"]
+__all__ = ["compute_sta_lta_components", "compute_sta_lta_patch", "detect_events"]

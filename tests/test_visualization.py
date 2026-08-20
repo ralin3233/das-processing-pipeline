@@ -11,9 +11,11 @@ from matplotlib.figure import Figure
 import numpy as np
 import dascore as dc
 
+from das_pipeline.config import StaLtaConfig
 from das_pipeline.visualization.waterfall import plot_waterfall
 from das_pipeline.visualization.fk import plot_fk_spectrum
 from das_pipeline.visualization.spectrogram import plot_spectrogram
+from das_pipeline.visualization.sta_lta import plot_sta_lta
 from das_pipeline.visualization.merge import (
     merge_patches,
     _parse_chunk_index,
@@ -531,6 +533,50 @@ class TestPlotSpectrogram(unittest.TestCase):
                 dims=("time", "distance"),
             )
             plot_spectrogram(bad_patch)
+
+
+class TestPlotStaLta(unittest.TestCase):
+    def tearDown(self):
+        plt.close("all")
+
+    def test_channel_medians_and_thresholds(self):
+        patch = _make_test_patch(n_time=100, n_distance=4, dims=("distance", "time"))
+        ratio = patch.abs().rolling(time=0.1).mean() / patch.abs().rolling(time=0.5).mean()
+        events = [{
+            "start_time": str(patch.coords.get_array("time")[20]),
+            "end_time": str(patch.coords.get_array("time")[30]),
+        }]
+
+        fig = plot_sta_lta(
+            ratio,
+            config=StaLtaConfig(
+                sta_window_s=0.1, lta_window_s=0.5,
+                trigger_threshold=3.0, detrigger_threshold=1.5,
+            ),
+            events=events,
+        )
+
+        self.assertIsInstance(fig, Figure)
+        self.assertEqual(len(fig.axes), 1)
+        self.assertGreaterEqual(len(fig.axes[0].lines), 3)
+        self.assertEqual(len(fig.axes[0].patches), 0)
+
+    def test_time_first_and_nan_warmup(self):
+        data = np.ones((20, 3), dtype=float)
+        data[:5] = np.nan
+        patch = dc.Patch(
+            data=data,
+            coords={
+                "time": np.arange(20, dtype=float),
+                "distance": np.arange(3, dtype=float),
+            },
+            dims=("time", "distance"),
+        )
+
+        fig = plot_sta_lta(patch)
+
+        self.assertIsInstance(fig, Figure)
+        self.assertTrue(np.isnan(fig.axes[0].lines[0].get_ydata()[0]))
 
 
 # ---------------------------------------------------------------------------

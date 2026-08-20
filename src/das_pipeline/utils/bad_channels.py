@@ -32,7 +32,8 @@ def exclude_bad_channels_from_patch(
     ``local_to_original`` maps compressed channel index back to the
     original channel number.
     """
-    n_orig = patch.shape[0] if "distance" in patch.dims else patch.shape[1]
+    channel_axis = patch.dims.index("distance") if "distance" in patch.dims else 0
+    n_orig = patch.shape[channel_axis]
     local_to_original = list(range(n_orig))
 
     if not bad_indices:
@@ -40,8 +41,6 @@ def exclude_bad_channels_from_patch(
 
     data = np.asarray(patch.data)
     dims = patch.dims
-    channel_axis = dims.index("distance") if "distance" in dims else 0
-
     keep_mask = np.ones(data.shape[channel_axis], dtype=bool)
     global_bad = np.array(bad_indices, dtype=int)
     global_bad = global_bad[(global_bad >= 0) & (global_bad < len(keep_mask))]

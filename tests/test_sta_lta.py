@@ -25,6 +25,7 @@ from das_pipeline.detection.sta_lta import (
     detect_events,
     _merge_nearby_events,
 )
+from das_pipeline.cli.helpers import handle_bad_channels_for_detection
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +79,54 @@ def _make_dummy_patch(
 def get_sampling_rate(patch: dc.Patch) -> float:
     time_vals = patch.coords.get_array("time")
     return 1.0 / ((time_vals[1] - time_vals[0]) / np.timedelta64(1, "s"))
+
+
+def _make_ratio_patch(
+    data: np.ndarray,
+    sampling_rate_hz: float = 10.0,
+    start_time: str = "2023-02-06T01:00:00",
+) -> dc.Patch:
+    """Create a Patch containing a synthetic STA/LTA ratio matrix."""
+    time = pd.date_range(
+        start=start_time,
+        periods=data.shape[0],
+        freq=f"{1000 / sampling_rate_hz}ms",
+    )
+    return dc.Patch(
+        data=np.asarray(data, dtype=float),
+        coords={"time": time, "distance": np.arange(data.shape[1], dtype=float)},
+        dims=["time", "distance"],
+    )
+
+
+class TestIgnoreLeadingChannels:
+    def test_ignores_original_leading_channels_time_first(self):
+        data = np.ones((4, 6))
+        patch = dc.Patch(
+            data=data,
+            coords={
+                "time": pd.date_range("2023-02-06T01:00:00", periods=4, freq="100ms"),
+                "distance": np.arange(6, dtype=float),
+            },
+            dims=["time", "distance"],
+            attrs={"all_nan_channel_indices": "4"},
+        )
+
+        cleaned, local_to_orig = handle_bad_channels_for_detection(
+            patch, ignore_leading_channels=2,
+        )
+
+        assert cleaned.shape == (4, 3)
+        assert local_to_orig == [2, 3, 5]
+        np.testing.assert_array_equal(
+            cleaned.coords.get_array("distance"), np.array([2.0, 3.0, 5.0]),
+        )
+
+    def test_rejects_invalid_count(self):
+        patch = _make_ratio_patch(np.ones((4, 3)))
+
+        with pytest.raises(ValueError, match="不可超過"):
+            handle_bad_channels_for_detection(patch, ignore_leading_channels=4)
 
 
 # ===================================================================
@@ -266,6 +315,40 @@ class TestDetectEventsBoundary:
         sta_lta = compute_sta_lta_patch(patch, config)
         events = detect_events(sta_lta, config, sr)
         assert len(events) <= 2
+
+    def test_lta_warmup_does_not_trigger(self):
+        """Samples before the first complete LTA window are ignored."""
+        data = np.full((30, 3), 10.0)
+        config = StaLtaConfig(
+            sta_window_s=0.5, lta_window_s=2.0,
+            trigger_threshold=3.0, detrigger_threshold=1.5,
+            min_channels_triggered=2, min_event_duration_s=0.1,
+        )
+        patch = _make_ratio_patch(data, sampling_rate_hz=10.0)
+
+        events = detect_events(patch, config, sampling_rate=10.0)
+
+        assert len(events) == 1
+        first_complete_lta = int(config.lta_window_s * 10.0) - 1
+        assert np.datetime64(events[0]["start_time"]) == patch.coords.get_array("time")[first_complete_lta]
+
+    def test_detrigger_uses_spatial_count(self):
+        """Event ends when fewer than the minimum channels exceed detrigger."""
+        data = np.full((20, 3), 1.0)
+        data[2:8, :] = 4.0
+        data[8:12, 0] = 2.0
+        data[8:12, 1:] = 1.0
+        config = StaLtaConfig(
+            sta_window_s=0.5, lta_window_s=0.5,
+            trigger_threshold=3.0, detrigger_threshold=1.5,
+            min_channels_triggered=2, min_event_duration_s=0.2,
+        )
+        patch = _make_ratio_patch(data, sampling_rate_hz=10.0)
+
+        events = detect_events(patch, config, sampling_rate=10.0)
+
+        assert len(events) == 1
+        assert events[0]["end_time"] == str(patch.coords.get_array("time")[7])
 
 
 # ===================================================================

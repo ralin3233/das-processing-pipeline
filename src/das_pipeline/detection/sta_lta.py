@@ -52,12 +52,21 @@ def compute_sta_lta_patch(
         STA/LTA ratio Patch.  The ``time`` coordinate is preserved but
         shortened by ``lta_samples - 1`` samples (boxcar edge effect).
     """
-    # DASCore stalta uses boxcar rolling mean, ours is energy-based on
-    # absolute amplitude.  Historically the pipeline used raw strain_rate;
-    # taking abs() makes it amplitude-driven, consistent with classic STA/LTA.
-    abs_patch = patch.abs()
+    _, _, sta_lta_patch = compute_sta_lta_components(patch, config)
 
-    sta_lta_patch = abs_patch.stalta(time=(config.sta_window_s, config.lta_window_s))
+    return sta_lta_patch
+
+
+def compute_sta_lta_components(
+    patch: dc.Patch,
+    config: StaLtaConfig,
+) -> tuple[dc.Patch, dc.Patch, dc.Patch]:
+    """Compute absolute-amplitude STA, LTA, and ratio Patches."""
+    # Match DASCore stalta: boxcar rolling means on absolute amplitude.
+    abs_patch = patch.abs()
+    sta_patch = abs_patch.rolling(time=config.sta_window_s).mean()
+    lta_patch = abs_patch.rolling(time=config.lta_window_s).mean()
+    sta_lta_patch = sta_patch / lta_patch
 
     # Check for NaN contamination after STA/LTA computation
     data = np.asarray(sta_lta_patch.data)
@@ -76,7 +85,7 @@ def compute_sta_lta_patch(
         config.lta_window_s,
         sta_lta_patch.shape,
     )
-    return sta_lta_patch
+    return sta_patch, lta_patch, sta_lta_patch
 
 
 # ---------------------------------------------------------------------------
@@ -163,14 +172,17 @@ def detect_events(
         data = data.T
 
     n_channels, n_valid = data.shape
+    lta_samples = max(1, int(round(config.lta_window_s * sampling_rate)))
+    lta_ready = np.arange(n_valid) >= lta_samples - 1
     min_dur_samp = max(1, int(round(config.min_event_duration_s * sampling_rate)))
 
     # Per-time-step triggered channels
-    # Exclude NaN explicitly: NaN > threshold = False, but make intent clear.
-    finite_data = np.isfinite(data)
-    triggered_mask = (data > config.trigger_threshold) & finite_data  # (n_channels, n_valid)
-    detriggered_mask = (data < config.detrigger_threshold) & finite_data
+    # A ratio is usable only after a complete LTA window is available.
+    valid_data = np.isfinite(data) & lta_ready[np.newaxis, :]
+    triggered_mask = (data > config.trigger_threshold) & valid_data  # (n_channels, n_valid)
+    active_mask = (data >= config.detrigger_threshold) & valid_data
     triggered_count = np.sum(triggered_mask, axis=0)  # (n_valid,)
+    active_count = np.sum(active_mask, axis=0)
 
     events: list[dict] = []
     in_event = False
@@ -178,6 +190,9 @@ def detect_events(
     below_duration = 0
 
     for i in range(n_valid):
+        if not lta_ready[i]:
+            continue
+
         enough = triggered_count[i] >= config.min_channels_triggered
 
         if not in_event:
@@ -186,19 +201,10 @@ def detect_events(
                 event_start_idx = i
                 below_duration = 0
         else:
-            if enough:
+            if active_count[i] >= config.min_channels_triggered:
                 below_duration = 0
             else:
-                triggered_now = np.flatnonzero(triggered_mask[:, i])
-                all_below = (
-                    np.all(detriggered_mask[triggered_now, i])
-                    if len(triggered_now) > 0
-                    else True
-                )
-                if all_below:
-                    below_duration += 1
-                else:
-                    below_duration = 0
+                below_duration += 1
 
             if below_duration >= min_dur_samp:
                 event_end_idx = i - below_duration

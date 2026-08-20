@@ -20,6 +20,7 @@ from das_pipeline.cli.helpers import (
     handle_bad_channels_for_detection,
     load_patch,
     log_patch_info,
+    setup_matplotlib_backend,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,10 @@ def register(app: typer.Typer) -> None:
             int,
             typer.Option("--min-channels", help="最少同時觸發的通道數（空間一致性）"),
         ] = 30,
+        ignore_channels: Annotated[
+            int,
+            typer.Option("--ignore-channels", help="忽略前 N 個 channel，避免井口雜訊"),
+        ] = 0,
         min_duration: Annotated[
             float,
             typer.Option("--min-duration", help="最短事件持續時間 (秒)"),
@@ -80,6 +85,10 @@ def register(app: typer.Typer) -> None:
             str,
             typer.Option("--format", "-f", help="輸出格式: csv, json (預設兩者皆輸出)"),
         ] = "all",
+        plot_stalta: Annotated[
+            bool,
+            typer.Option("--plot-stalta", help="繪製 ratio 中位數圖"),
+        ] = False,
     ):
         """對已處理的 .h5 檔案執行 STA/LTA 觸發檢測（使用 DASCore stalta）。
 
@@ -133,7 +142,13 @@ def register(app: typer.Typer) -> None:
         )
 
         # --- 排除不可用 channel ---
-        patch, local_to_orig = handle_bad_channels_for_detection(patch)
+        try:
+            patch, local_to_orig = handle_bad_channels_for_detection(
+                patch, ignore_leading_channels=ignore_channels,
+            )
+        except ValueError as exc:
+            typer.echo(f"❌ {exc}")
+            raise typer.Exit(1) from exc
 
         # --- STA/LTA via DASCore ---
         sta_lta_patch = compute_sta_lta_patch(patch, config)
@@ -142,6 +157,25 @@ def register(app: typer.Typer) -> None:
         # --- Event detection ---
         events = detect_events(sta_lta_patch, config, sampling_rate)
         typer.echo(f"檢測到 {len(events)} 個事件")
+
+        if plot_stalta:
+            setup_matplotlib_backend(save is not None)
+            import matplotlib.pyplot as plt
+            from das_pipeline.visualization import plot_sta_lta
+
+            fig = plot_sta_lta(
+                sta_lta_patch,
+                config=config, events=events,
+            )
+            if save is not None:
+                save_dir = Path(save)
+                save_dir.mkdir(parents=True, exist_ok=True)
+                plot_path = save_dir / "sta_lta.png"
+                fig.savefig(str(plot_path), dpi=150, bbox_inches="tight")
+                plt.close(fig)
+                typer.echo(f"✅ STA/LTA 圖: {plot_path}")
+            else:
+                plt.show()
 
         if len(events) == 0:
             typer.echo("⚠️  未檢測到任何觸發事件")
